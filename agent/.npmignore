@@ -1,0 +1,23 @@
+# Compiled output
+dist/
+dist-v2/
+*.js
+*.js.map
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+.lua/
+
+# OS files
+.DS_Store
+Thumbs.db
+# Workflows v1 (wave-5 gate): the script-form example IS tracked (WB-09, WF-527)
+!examples/workflows/*.workflow.script.js

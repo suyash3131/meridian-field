@@ -1,0 +1,5 @@
+# Leading slashes matter. Without them these match a directory of that name at
+# ANY depth — `agent/` also matched `app/api/agent/` and shipped a build with
+# no API at all.
+/agent/
+/db/

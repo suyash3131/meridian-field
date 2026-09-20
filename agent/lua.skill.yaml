@@ -1,0 +1,20 @@
+agent:
+  agentId: baseAgent_agent_1789922892145_ie20jx4g5
+  orgId: b0d2a45f-9562-4fe3-9626-693c2b53ae06
+skills:
+  - name: counter
+    skillId: 2288a636-aec7-4a43-8630-5a318c8a04a3
+    version: 1.0.3
+  - name: territory
+    skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
+    version: 1.0.2
+webhooks: []
+jobs: []
+preprocessors: []
+postprocessors: []
+mcpServers: []
+backup:
+  activeVersion: 3
+  lastHash: f84d70d3611a88fb381aa5802b9b142abbe4c3994eef72988134b6e45799eb51
+  lastPushedAt: '2026-09-20T17:14:47.527Z'
+workflows: []
