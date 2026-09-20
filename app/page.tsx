@@ -11,116 +11,166 @@ type Pulse = {
   flagged: { id: string; outlet: string; rep: string; note: string; at: string }[];
 };
 
+/** A hairline showing proportion. Not a chart — it earns its place because a
+ *  manager scanning twelve rows reads a length faster than she reads "6 / 18". */
+function Coverage({ made, scheduled }: { made: number; scheduled: number }) {
+  if (!scheduled) return <span className="text-ink-faint">—</span>;
+  const pct = Math.round((made / scheduled) * 100);
+  const behind = pct < 60;
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <span className="relative block h-[3px] w-14 bg-rule" aria-hidden>
+        <span
+          className={`absolute inset-y-0 left-0 ${behind ? 'bg-signal' : 'bg-ink'}`}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </span>
+      <span className={`fig text-[0.8125rem] ${behind ? 'text-signal' : 'text-ink-soft'}`}>
+        {made}/{scheduled}
+      </span>
+    </span>
+  );
+}
+
 export default function Today() {
   const [d, setD] = useState<Pulse | null>(null);
   useEffect(() => { fetch('/api/manager/pulse').then((r) => r.json()).then(setD); }, []);
 
-  if (!d) return <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 text-muted">Loading…</div>;
-
-  const covered = d.today.scheduled ? Math.round((d.today.visits / d.today.scheduled) * 100) : 0;
+  // Rendered in the business's timezone, not the browser's or the server's.
+  const fmt = (o: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(new Date());
+  const today = fmt({ weekday: 'long', day: 'numeric', month: 'long' });
+  const dayName = fmt({ weekday: 'long' });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 space-y-8">
-      <div>
-        <h1 className="text-lg font-semibold">Today</h1>
-        <p className="text-sm text-muted mt-1">
-          One screen, one question: is today going the way it should, and who is stuck.
-        </p>
+    <div className="mx-auto max-w-[68rem] px-5 sm:px-8 py-10 lg:py-12">
+      <div className="rule-label mb-8">
+        <span className="label">{today}</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          ['Counters covered', `${d.today.visits} / ${d.today.scheduled}`, `${covered}% of plan`],
-          ['Orders', String(d.today.orders), 'placed today'],
-          ['Order value', rs(d.today.value), 'confirmed today'],
-          ['Waiting on you', String(d.approvals.length), 'approvals pending'],
-        ].map(([label, value, sub]) => (
-          <div key={label} className="rounded border border-line bg-panel p-3">
-            <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
-            <div className="text-2xl font-semibold num mt-1">{value}</div>
-            <div className="text-xs text-muted">{sub}</div>
-          </div>
-        ))}
-      </div>
+      {!d ? (
+        <div className="h-7 w-3/5 bg-paper-sunk" aria-busy="true" />
+      ) : (
+        <>
+          {/* Answer first, as a sentence. A manager should be able to leave after
+              reading one line if the line is reassuring.
 
-      {/* The approvals come first because they are the only thing on this page
-          that stops work until a person acts. */}
-      <section>
-        <h2 className="text-sm font-semibold mb-2">
-          Needs a decision <span className="font-normal text-muted">— nothing ships until you act</span>
-        </h2>
-        {d.approvals.length === 0 ? (
-          <p className="text-sm text-muted">Nothing pending.</p>
-        ) : (
-          <div className="rounded border border-line divide-y divide-line">
-            {d.approvals.map((a) => (
-              <div key={a.id} className="p-3 flex flex-wrap items-baseline justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium">
-                    {a.outlet} <span className="text-muted font-normal">· {rs(a.value)} · {a.rep}</span>
+              The two sentences are separate blocks rather than one run of text:
+              as a single paragraph the second one wrapped mid-phrase, and the
+              thing that needs her is the thing that must not start mid-line. */}
+          <h1 className="answer">
+            {d.today.visits === 0 ? (
+              <>Nothing logged yet today. {dayName}’s route is {d.today.scheduled} counters.</>
+            ) : (
+              <>{d.today.visits} of {d.today.scheduled} counters covered so far.</>
+            )}
+            {d.approvals.length > 0 && (
+              <span className="block text-signal">
+                {d.approvals.length} decision{d.approvals.length > 1 ? 's' : ''} waiting on you.
+              </span>
+            )}
+          </h1>
+
+          <p className="fig mt-4 text-[0.8125rem] text-ink-faint">
+            {d.today.visits === 0 ? (
+              <>Reps start at nine</>
+            ) : (
+              <>
+                {d.today.orders} orders
+                <span className="mx-2.5 text-rule-firm">·</span>
+                {rs(d.today.value)} confirmed today
+              </>
+            )}
+          </p>
+
+          {/* ------------------------------------------------- approvals */}
+          <section className="mt-12">
+            <div className="rule-label mb-1">
+              <span className="label">Needs a decision · nothing ships until you act</span>
+            </div>
+
+            {d.approvals.length === 0 ? (
+              <p className="py-5 text-[0.875rem] text-ink-soft">
+                Nothing is waiting. Every order placed today went straight through.
+              </p>
+            ) : (
+              <ul className="rows">
+                {d.approvals.map((a) => (
+                  <li key={a.id} className="row-hover -mx-3 px-3 py-4
+                                            grid gap-x-6 gap-y-1
+                                            sm:grid-cols-[1fr_auto_5.5rem] items-baseline">
+                    <div>
+                      <p className="text-[0.9375rem]">
+                        {a.outlet}
+                        <span className="tag ml-2.5">{a.rep}</span>
+                      </p>
+                      <p className="mt-1 text-[0.8125rem] text-ink-soft max-w-[52ch]">{a.reason}</p>
+                    </div>
+                    <p className="fig text-[0.9375rem] text-signal sm:text-right">{rs(a.value)}</p>
+                    <p className="fig text-[0.75rem] text-ink-faint sm:text-right">
+                      {a.age_days === 0 ? 'today' : `${a.age_days}d held`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* ------------------------------------------------------ reps */}
+          <section className="mt-12">
+            <div className="rule-label mb-1">
+              <span className="label">Reps · today</span>
+            </div>
+            <ul className="rows">
+              {d.byRep.map((r) => (
+                <li key={r.rep_id} className="row-hover -mx-3 px-3 py-3
+                                              grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_6rem_9rem_7rem]
+                                              gap-x-6 gap-y-1 items-baseline">
+                  <p className="text-[0.9375rem]">
+                    {r.name}
+                    <span className="tag ml-2.5">{r.rep_id}</span>
+                  </p>
+                  <p className="label hidden sm:block">{r.region}</p>
+                  <div className="col-span-2 sm:col-span-1">
+                    <Coverage made={r.made} scheduled={r.scheduled} />
                   </div>
-                  <div className="text-xs text-warn mt-0.5">{a.reason}</div>
-                </div>
-                <div className="text-xs text-muted num">
-                  {a.age_days === 0 ? 'today' : `${a.age_days}d waiting`}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+                  <p className="fig text-[0.875rem] text-right">{rs(r.value)}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-      <section>
-        <h2 className="text-sm font-semibold mb-2">Reps today</h2>
-        <div className="rounded border border-line overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-panel text-muted text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left font-medium px-3 py-2">Rep</th>
-                <th className="text-left font-medium px-3 py-2">Region</th>
-                <th className="text-right font-medium px-3 py-2">Covered</th>
-                <th className="text-right font-medium px-3 py-2">Value</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {d.byRep.map((r) => {
-                const pct = r.scheduled ? Math.round((r.made / r.scheduled) * 100) : 0;
-                const behind = r.scheduled > 0 && pct < 60;
-                return (
-                  <tr key={r.rep_id}>
-                    <td className="px-3 py-2">{r.name} <span className="text-muted">{r.rep_id}</span></td>
-                    <td className="px-3 py-2 text-muted">{r.region}</td>
-                    <td className={`px-3 py-2 text-right num ${behind ? 'text-alarm font-medium' : ''}`}>
-                      {r.made} / {r.scheduled}{r.scheduled ? ` · ${pct}%` : ''}
-                    </td>
-                    <td className="px-3 py-2 text-right num">{rs(r.value)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Off-route and far-from-counter visits are surfaced, never blocked.
-          A rep covering for a colleague who is ill must still be able to work. */}
-      <section>
-        <h2 className="text-sm font-semibold mb-2">
-          Worth a look <span className="font-normal text-muted">— recorded, not blocked</span>
-        </h2>
-        {d.flagged.length === 0 ? (
-          <p className="text-sm text-muted">Nothing flagged this week.</p>
-        ) : (
-          <div className="rounded border border-line divide-y divide-line">
-            {d.flagged.map((f) => (
-              <div key={f.id} className="px-3 py-2 flex flex-wrap justify-between gap-2 text-sm">
-                <span>{f.outlet} <span className="text-muted">· {f.rep}</span></span>
-                <span className="text-muted text-xs">{f.note} · {f.at}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+          {/* --------------------------------------------------- flagged */}
+          <section className="mt-12">
+            <div className="rule-label mb-1">
+              <span className="label">Worth a look · recorded, not blocked</span>
+            </div>
+            <p className="pt-3 pb-1 text-[0.8125rem] text-ink-soft measure leading-relaxed">
+              A counter off today’s route, or a visit logged from further away than it should be.
+              Neither is stopped — a rep covering for a colleague who is ill has to be able to work.
+            </p>
+            {d.flagged.length === 0 ? (
+              <p className="py-4 text-[0.875rem] text-ink-soft">Nothing flagged this week.</p>
+            ) : (
+              <ul className="rows mt-3">
+                {d.flagged.map((f) => (
+                  <li key={f.id} className="row-hover -mx-3 px-3 py-2.5
+                                            flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5">
+                    <p className="text-[0.875rem]">
+                      {f.outlet}
+                      <span className="tag ml-2.5">{f.rep}</span>
+                    </p>
+                    <p className="text-[0.75rem] text-ink-faint">
+                      {f.note}
+                      <span className="fig ml-3">{f.at}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

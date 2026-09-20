@@ -19,6 +19,43 @@ declare global {
   interface Window { LuaPop?: { init: (c: Record<string, unknown>) => Promise<unknown>; destroy?: () => void } }
 }
 
+const SCOPES = [
+  { key: 'North', label: 'North' },
+  { key: 'South', label: 'South' },
+  { key: '', label: 'All India' },
+];
+
+/** A cause reads as a line of argument, not a card. The ordinal down the left
+ *  is what makes the list feel ranked rather than merely listed. */
+function Cause({ n, f }: { n: number; f: Finding }) {
+  return (
+    <li className="grid grid-cols-[1.75rem_1fr] sm:grid-cols-[2.25rem_1fr] gap-x-2 py-5">
+      <span className="ordinal pt-[0.3rem]">{String(n).padStart(2, '0')}</span>
+      <div>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <p className="text-[0.9375rem] leading-snug max-w-[46ch]">{f.headline}</p>
+          {f.impactPaise > 0 && (
+            <p className="fig text-[0.9375rem] text-signal whitespace-nowrap">
+              {f.estimated && <span className="text-ink-faint">≈ </span>}
+              {rs(f.impactPaise)}
+            </p>
+          )}
+        </div>
+        {f.lever && (
+          <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-soft max-w-[54ch]">
+            {f.lever}
+          </p>
+        )}
+        {f.estimated && (
+          <p className="mt-1.5 label">
+            Estimated from coverage, not measured
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export default function Ask() {
   const [region, setRegion] = useState<string>('North');
   const [a, setA] = useState<Answer | null>(null);
@@ -63,88 +100,103 @@ export default function Ask() {
     document.body.appendChild(s);
   }, []);
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Eight o&rsquo;clock</h1>
-        <p className="text-sm text-muted mt-1 max-w-2xl">
-          One question, asked differently every time: is the number going to land, and if not,
-          where is it leaking. The answer below is computed — the agent chooses what to look at
-          and how to say it, and never does the arithmetic itself.
-        </p>
-      </div>
+  const week = Math.ceil(
+    ((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86_400_000 + 1) / 7
+  );
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
-        <section className="space-y-4">
-          <div className="flex gap-2">
-            {['North', 'South', 'All'].map((r) => (
-              <button key={r} onClick={() => setRegion(r === 'All' ? '' : r)}
-                className={`rounded border px-3 py-1.5 text-sm ${
-                  (r === 'All' ? '' : r) === region
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-line hover:bg-panel'}`}>
-                {r}
-              </button>
-            ))}
+  return (
+    <div className="mx-auto max-w-[68rem] px-5 sm:px-8">
+      <div className="grid gap-x-12 lg:grid-cols-[1fr_20rem]">
+
+        {/* ---------------------------------------------------- the memo */}
+        <article className="py-10 lg:py-12 lg:border-r lg:border-rule lg:pr-12">
+
+          <div className="flex items-center gap-4 mb-8">
+            <span className="label whitespace-nowrap">
+              {region || 'All India'} · Week {week}
+            </span>
+            <span className="flex-1 h-px bg-rule" />
+            <div className="flex gap-4">
+              {SCOPES.map((s) => {
+                const on = s.key === region;
+                return (
+                  <button
+                    key={s.label}
+                    onClick={() => setRegion(s.key)}
+                    aria-pressed={on}
+                    className={`label !text-[0.6875rem] whitespace-nowrap pb-0.5 border-b
+                                transition-colors ${
+                      on ? '!text-ink border-ink' : 'border-transparent hover:!text-ink-soft'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          {/* The question, quoted. It grounds the answer below it and it is a
+              reminder of what this page is for. */}
+          <p className="text-[0.8125rem] text-ink-faint mb-5 measure">
+            “Is the number going to land, and if not, where is it leaking?”
+          </p>
 
           {loading || !a ? (
-            <p className="text-muted text-sm">Working it out…</p>
+            <div className="space-y-3" aria-busy="true">
+              <div className="h-7 w-4/5 bg-paper-sunk" />
+              <div className="h-7 w-3/5 bg-paper-sunk" />
+            </div>
           ) : (
             <>
-              <div className="rounded border border-line bg-panel p-4">
-                <div className="text-base font-medium">{a.headline}</div>
-                <div className="text-xs text-muted mt-1 num">
-                  {rs(a.trend.lastWeek)} → {rs(a.trend.thisWeek)}
-                  {a.trend.pct !== 0 && ` · ${a.trend.pct > 0 ? '+' : ''}${a.trend.pct}%`}
-                </div>
+              <h1 className="answer">{a.headline}</h1>
+
+              <p className="fig mt-4 text-[0.8125rem] text-ink-faint">
+                {rs(a.trend.lastWeek)}
+                <span className="mx-2 text-rule-firm">→</span>
+                {rs(a.trend.thisWeek)}
+                {a.trend.pct !== 0 && (
+                  <span className={a.trend.pct < 0 ? 'text-signal ml-3' : 'text-settled ml-3'}>
+                    {a.trend.pct < 0 ? '▾' : '▴'} {Math.abs(a.trend.pct)}%
+                  </span>
+                )}
+              </p>
+
+              <div className="rule-label mt-11 mb-1">
+                <span className="label">Why · biggest first</span>
               </div>
 
-              <div>
-                <h2 className="text-sm font-semibold mb-2">
-                  Causes, biggest first
-                  <span className="font-normal text-muted"> — sized in rupees so they can be compared</span>
-                </h2>
-                <ol className="space-y-2">
-                  {a.findings.map((f, i) => (
-                    <li key={f.code + i} className="rounded border border-line p-3">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-sm font-medium">{i + 1}. {f.headline}</span>
-                        {f.impactPaise > 0 && (
-                          <span className="text-sm num text-alarm whitespace-nowrap">
-                            {f.estimated ? '≈ ' : ''}{rs(f.impactPaise)}
-                          </span>
-                        )}
-                      </div>
-                      {f.lever && <div className="text-xs text-muted mt-1">{f.lever}</div>}
-                      {f.estimated && (
-                        <div className="text-[11px] text-muted mt-1 italic">
-                          Estimated from coverage, not measured.
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-              </div>
+              <ol className="rows">
+                {a.findings.map((f, i) => <Cause key={f.code + i} n={i + 1} f={f} />)}
+              </ol>
 
               {a.biggestLever && (
-                <div className="rounded border-l-2 border-accent bg-panel p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted">Do this first</div>
-                  <div className="text-sm mt-1">{a.biggestLever}</div>
+                <div className="mt-10 border-t-2 border-ink pt-5">
+                  <p className="label mb-2">Do this first</p>
+                  <p className="text-[0.9375rem] leading-relaxed measure">{a.biggestLever}</p>
                 </div>
               )}
+
+              <p className="mt-10 label leading-relaxed measure">
+                Every figure here is computed. The agent chooses what to look at
+                and how to say it, and does none of the arithmetic.
+              </p>
             </>
           )}
-        </section>
+        </article>
 
-        <section>
-          <div className="text-xs uppercase tracking-wide text-muted mb-2">
-            Ask the agent — same agent the reps use
+        {/* --------------------------------------------------- the rail */}
+        <aside className="pb-12 lg:py-12">
+          <div className="rule-label mb-3">
+            <span className="label">Ask it yourself</span>
           </div>
-          <div className="rounded border border-line overflow-hidden">
-            <div id="manager-chat" style={{ height: '34rem' }} />
+          <p className="text-[0.8125rem] text-ink-soft leading-relaxed mb-4">
+            The same agent the reps use, in the same words you would say out loud.
+          </p>
+          <div className="border border-rule bg-white overflow-hidden">
+            <div id="manager-chat" style={{ height: '30rem' }} />
           </div>
-        </section>
+        </aside>
       </div>
     </div>
   );

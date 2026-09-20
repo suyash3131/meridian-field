@@ -11,8 +11,6 @@ declare global {
   interface Window { LuaPop?: { init: (c: Record<string, unknown>) => Promise<unknown>; destroy?: () => void } }
 }
 
-/** A stable per-browser suffix, so reloading resumes the same conversation
- *  instead of starting a fresh one and losing the thread mid-demo. */
 function browserKey(): string {
   try {
     const k = localStorage.getItem('meridian_demo_key');
@@ -22,6 +20,25 @@ function browserKey(): string {
     return v;
   } catch { return 'nostore'; }
 }
+
+/** Controls sit quietly to the side. The phone is the page. */
+function Field({ label, children, note }:
+  { label: string; children: React.ReactNode; note?: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      <div className="mt-2">{children}</div>
+      {note && <p className="mt-2 text-[0.75rem] leading-relaxed text-ink-faint">{note}</p>}
+    </label>
+  );
+}
+
+const selectCls =
+  "w-full appearance-none bg-transparent border-0 border-b border-rule-firm " +
+  "py-1.5 pr-6 text-[0.875rem] text-ink " +
+  "focus:border-ink disabled:opacity-40 " +
+  "bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22><path d=%22M1 1l4 4 4-4%22 fill=%22none%22 stroke=%22%238a8375%22 stroke-width=%221.3%22/></svg>')] " +
+  "bg-[right_0.15rem_center] bg-no-repeat";
 
 export default function RepView() {
   const [reps, setReps] = useState<Rep[]>([]);
@@ -38,14 +55,14 @@ export default function RepView() {
   useEffect(() => {
     fetch('/api/reps').then((r) => r.json()).then((d) => {
       setReps(d.reps); setWeekday(d.weekday); setNoRoute(!!d.noRouteToday);
-      const r7 = d.reps.find((r: Rep) => r.id === 'R-07') ?? d.reps[0];
-      if (r7) { setRepId(r7.id); setStandingAt(r7.counters.find((c: Counter) => c.on_beat)?.id ?? r7.counters[0]?.id ?? ''); }
+      const first = d.reps.find((r: Rep) => r.id === 'R-07') ?? d.reps[0];
+      if (first) {
+        setRepId(first.id);
+        setStandingAt(first.counters.find((c: Counter) => c.on_beat)?.id ?? first.counters[0]?.id ?? '');
+      }
     });
   }, []);
 
-  // ---- publish the rep's position -------------------------------------------
-  // This is the only way a location enters the system. The agent has no tool
-  // that accepts a coordinate, so nothing typed in the chat can produce one.
   async function publish(lat: number, lng: number, note: string) {
     await fetch('/api/agent/position', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -58,20 +75,19 @@ export default function RepView() {
     if (!rep) return;
     if (useRealGps) {
       navigator.geolocation?.getCurrentPosition(
-        (p) => publish(p.coords.latitude, p.coords.longitude, 'your real location — expect visits to be flagged'),
-        () => setPosNote('browser refused location'),
+        (p) => publish(p.coords.latitude, p.coords.longitude,
+          'your actual location — expect every visit to come back flagged'),
+        () => setPosNote('the browser refused to share a location'),
         { enableHighAccuracy: true, timeout: 8000 }
       );
       return;
     }
     const c = rep.counters.find((x) => x.id === standingAt);
     if (!c) return;
-    // A few metres of jitter, the way a phone reports it.
     publish(c.lat + (Math.random() - 0.5) * 0.0004, c.lng + (Math.random() - 0.5) * 0.0004,
       `outside ${c.name}, ${c.area}`);
   }, [repId, standingAt, useRealGps, rep?.id]);
 
-  // ---- mount the Lua widget ---------------------------------------------------
   useEffect(() => {
     if (!rep) return;
     const start = async () => {
@@ -109,94 +125,114 @@ export default function RepView() {
   }, [rep?.id, weekday]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 grid gap-8 lg:grid-cols-[22rem_1fr]">
-      <section className="space-y-5">
+    <div className="mx-auto max-w-[68rem] px-5 sm:px-8 py-10 lg:py-12">
+      <div className="grid gap-x-14 gap-y-10 lg:grid-cols-[19rem_1fr]">
+
+        {/* ------------------------------------------------- the framing */}
         <div>
-          <h1 className="text-lg font-semibold">At the counter</h1>
-          <p className="text-sm text-muted mt-1">
-            This is the whole product for a rep. No app, no forms, no login — one chat,
-            the way he already messages his manager.
+          <div className="rule-label mb-7">
+            <span className="label">At the counter</span>
+          </div>
+
+          <p className="text-[0.9375rem] leading-relaxed measure">
+            This is the whole product for a rep. No app, no forms, no login —
+            one chat, the way he already messages his manager.
           </p>
-        </div>
 
-        <label className="block">
-          <span className="text-xs uppercase tracking-wide text-muted">You are</span>
-          <select
-            value={repId}
-            onChange={(e) => {
-              const r = reps.find((x) => x.id === e.target.value);
-              setRepId(e.target.value);
-              setStandingAt(r?.counters.find((c) => c.on_beat)?.id ?? r?.counters[0]?.id ?? '');
-            }}
-            className="mt-1 w-full rounded border border-line bg-panel px-3 py-2 text-sm"
-          >
-            {reps.map((r) => (
-              <option key={r.id} value={r.id}>{r.name} · {r.id} · {r.region}</option>
-            ))}
-          </select>
-        </label>
+          <div className="mt-9 space-y-7">
+            <Field label="You are">
+              <select
+                value={repId}
+                onChange={(e) => {
+                  const r = reps.find((x) => x.id === e.target.value);
+                  setRepId(e.target.value);
+                  setStandingAt(r?.counters.find((c) => c.on_beat)?.id ?? r?.counters[0]?.id ?? '');
+                }}
+                className={selectCls}
+              >
+                {reps.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name} · {r.id} · {r.region}</option>
+                ))}
+              </select>
+            </Field>
 
-        <label className="block">
-          <span className="text-xs uppercase tracking-wide text-muted">Standing outside</span>
-          <select
-            value={standingAt}
-            disabled={useRealGps}
-            onChange={(e) => setStandingAt(e.target.value)}
-            className="mt-1 w-full rounded border border-line bg-panel px-3 py-2 text-sm disabled:opacity-50"
-          >
-            {rep?.counters.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}{c.on_beat ? '' : '  (not on today’s route)'}
-              </option>
-            ))}
-          </select>
-          <span className="mt-1 block text-xs text-muted">📍 {posNote}</span>
-          {noRoute && (
-            <span className="mt-1 block text-xs text-muted">
-              {weekday} — no beat runs today, so nothing counts as off-route.
-            </span>
-          )}
-        </label>
+            <Field
+              label="Standing outside"
+              note={
+                <>
+                  <span className="fig">{posNote}</span>
+                  {noRoute && (
+                    <span className="block mt-1">
+                      {weekday} — no beat runs today, so nothing counts as off-route.
+                    </span>
+                  )}
+                </>
+              }
+            >
+              <select
+                value={standingAt}
+                disabled={useRealGps}
+                onChange={(e) => setStandingAt(e.target.value)}
+                className={selectCls}
+              >
+                {rep?.counters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.on_beat ? '' : '  · off today’s route'}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={useRealGps} onChange={(e) => setUseRealGps(e.target.checked)}
-                 className="mt-1" />
-          <span>
-            Use my real location
-            <span className="block text-xs text-muted">
-              You are not in Karol Bagh, so every visit will come back flagged. That is the
-              point — turn it on to see what a rep ordering from home looks like.
-            </span>
-          </span>
-        </label>
+            <label className="flex gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={useRealGps}
+                onChange={(e) => setUseRealGps(e.target.checked)}
+                className="mt-[0.2rem] h-3.5 w-3.5 shrink-0 accent-[#17150f]"
+              />
+              <span>
+                <span className="text-[0.875rem]">Use my real location</span>
+                <span className="mt-1 block text-[0.75rem] leading-relaxed text-ink-faint">
+                  You are not in Karol Bagh, so every visit will come back flagged.
+                  That is the point — this is what a rep ordering from home looks like.
+                </span>
+              </span>
+            </label>
+          </div>
 
-        <div className="rounded border border-line bg-panel p-3 text-xs text-muted leading-relaxed">
-          <strong className="text-foreground font-medium">How location works here.</strong>{' '}
-          The phone publishes its own position to the server. The agent has no tool that
-          accepts a coordinate, so nothing typed into this chat can produce or change one.
-          On WhatsApp this is the location attachment.
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <div className="mx-auto w-full max-w-[26rem]">
-          <div className="rounded-[2rem] border-[10px] border-neutral-800 bg-neutral-800 shadow-xl">
-            <div className="rounded-[1.4rem] overflow-hidden bg-white">
-              <div className="bg-[#075E54] text-white px-4 py-2.5 flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-white/20 grid place-items-center text-sm">M</div>
-                <div className="leading-tight">
-                  <div className="text-sm font-medium">Meridian</div>
-                  <div className="text-[11px] text-white/70">order book</div>
-                </div>
-              </div>
-              <div id="counter-chat" style={{ height: '30rem' }} />
-            </div>
+          <div className="mt-9 border-t border-rule pt-5">
+            <p className="label mb-2">How location works</p>
+            <p className="text-[0.8125rem] leading-relaxed text-ink-soft">
+              The phone publishes its own position to the server. The agent has no tool that
+              accepts a coordinate, so nothing typed into this chat can produce or change one.
+              On WhatsApp this is the location attachment.
+            </p>
           </div>
         </div>
-        <p className="text-center text-xs text-muted">
-          Same agent as the manager widget. One agent, two doors.
-        </p>
-      </section>
+
+        {/* ---------------------------------------------------- the phone */}
+        <div className="justify-self-center w-full max-w-[23rem]">
+          <div className="rounded-[2.25rem] bg-[#1c1b18] p-2.5 shadow-[0_24px_60px_-20px_rgba(23,21,15,0.45)]">
+            <div className="relative rounded-[1.6rem] overflow-hidden bg-white">
+              <div className="absolute inset-x-0 top-0 z-10 h-6 flex justify-center">
+                <span className="mt-1.5 h-1 w-16 rounded-full bg-black/25" />
+              </div>
+              <div className="bg-[#0f5c4e] px-4 pt-7 pb-3 flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-white/15 grid place-items-center
+                                text-[0.8125rem] text-white font-medium">M</div>
+                <div className="leading-tight">
+                  <p className="text-[0.875rem] text-white font-medium">Meridian</p>
+                  <p className="text-[0.6875rem] text-white/60">order book</p>
+                </div>
+              </div>
+              <div id="counter-chat" style={{ height: '31rem' }} />
+            </div>
+          </div>
+          <p className="label mt-4 text-center">
+            Same agent as the manager widget · one agent, two doors
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

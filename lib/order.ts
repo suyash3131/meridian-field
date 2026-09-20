@@ -1,4 +1,4 @@
-import { sql, one, tx } from './db';
+import { sql, one, tx, businessWeekday } from './db';
 import { resolveOutlet, resolveSku, learnAlias, metres } from './match';
 import type { OutletMatch, SkuMatch } from './match';
 
@@ -179,7 +179,7 @@ export async function draftOrder(proposal: Proposal): Promise<DraftResult> {
     gps: fix ? { lat: fix.lat, lng: fix.lng } : undefined,
     photoUrl: fix?.photoUrl ?? proposal.photoUrl,
   };
-  const weekday = ((new Date().getDay() + 6) % 7) + 1;  // 1 = Monday
+  const weekday = businessWeekday();  // 1 = Monday
   await logEvent({ repId: p.repId, threadId: p.threadId, event: 'message_in', ms: 0 });
 
   const outletDecision = await resolveOutlet(p.shopPhrase, {
@@ -402,7 +402,7 @@ async function buildDraft(
   const afterPaise = owed + totalPaise;
 
   const { onBeat, seq, noRouteToday } = await beatPosition(
-    p.repId, outlet.id, ((new Date().getDay() + 6) % 7) + 1);
+    p.repId, outlet.id, businessWeekday());
   const distanceM = p.gps ? metres(p.gps.lat, p.gps.lng, outlet.lat, outlet.lng) : null;
   const verification =
     distanceM === null ? 'unverified'
@@ -621,7 +621,7 @@ export async function logVisit(v: {
   threadId?: string; rawMessage: string;
 }): Promise<{ visitId: string; outlet: string; verification: string; onBeat: boolean }
           | { error: string; options?: { key: string; label: string }[] }> {
-  const weekday = ((new Date().getDay() + 6) % 7) + 1;
+  const weekday = businessWeekday();
   const fix = await lastPosition(v.repId);
   v = { ...v, gps: fix ? { lat: fix.lat, lng: fix.lng } : undefined,
         photoUrl: fix?.photoUrl ?? v.photoUrl };

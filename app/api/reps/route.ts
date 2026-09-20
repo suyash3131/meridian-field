@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
+import { sql, businessWeekday } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +34,6 @@ export async function GET() {
        FROM reps r JOIN managers m ON m.id = r.asm_id
       ORDER BY r.region, r.id`
   );
-  const noRouteToday = new Date().getDay() === 0;
+  const noRouteToday = businessWeekday() === 7;
   return NextResponse.json({ reps, noRouteToday, weekday: new Date().toLocaleDateString('en-IN', { weekday: 'long' }) });
 }
