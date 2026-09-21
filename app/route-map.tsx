@@ -54,7 +54,11 @@ export default function RouteMap({
     import('leaflet').then((mod) => {
       if (dead || !el.current || map.current) return;
       L.current = mod;
-      const m = mod.map(el.current, { zoomControl: false, attributionControl: true })
+      // No fade or zoom animation: started inside the phone's hidden tabs, the
+      // fade froze half-way and left tiles loaded but invisible.
+      const m = mod.map(el.current, {
+        zoomControl: false, attributionControl: true, fadeAnimation: false, zoomAnimation: false,
+      })
         .setView([28.65, 77.19], 13);
       mod.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
@@ -65,6 +69,11 @@ export default function RouteMap({
       m.on('click', (e: Leaflet.LeafletMouseEvent) => handlers.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
       layer.current = mod.layerGroup().addTo(m);
       map.current = m;
+      // Leaflet measures its box once. Inside the phone the box settles after
+      // first paint, which left half the tiles unloaded; re-measure on resize.
+      const ro = new ResizeObserver(() => m.invalidateSize());
+      ro.observe(el.current);
+      m.on('unload', () => ro.disconnect());
       draw();
     });
     return () => { dead = true; map.current?.remove(); map.current = null; };
