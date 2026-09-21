@@ -40,6 +40,11 @@ export const T = {
     legend: { full: 'Full day', part: 'Part day', missed: 'Missed', none: 'No route' },
     attendanceNote: 'Filled in by your orders and visits. There’s nothing to tap.',
     weekdays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    chatBar: {
+      at: 'At', notAtStop: 'Not at a shop on today’s route',
+      order: 'Order', noOrder: 'No order', dues: 'Dues',
+      hint: 'Tap one, then type the rest. Or tap the mic and say it.',
+    },
     locale: 'en-IN',
     speech: 'en-IN',
   },
@@ -72,6 +77,11 @@ export const T = {
     legend: { full: 'पूरा दिन', part: 'आधा दिन', missed: 'छूटा', none: 'रूट नहीं' },
     attendanceNote: 'आपके ऑर्डर और विज़िट से अपने-आप भरती है। कुछ दबाना नहीं है।',
     weekdays: ['सो', 'मं', 'बु', 'गु', 'शु', 'श', 'र'],
+    chatBar: {
+      at: 'अभी', notAtStop: 'आज के रूट की किसी दुकान पर नहीं',
+      order: 'ऑर्डर', noOrder: 'ऑर्डर नहीं', dues: 'बकाया',
+      hint: 'एक दबाएँ, बाकी लिखें। या माइक दबाकर बोलें।',
+    },
     locale: 'hi-IN',
     speech: 'hi-IN',
   },

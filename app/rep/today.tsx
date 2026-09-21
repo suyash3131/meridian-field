@@ -44,7 +44,8 @@ export function briefLines(d: Day, lang: Lang): string[] {
   return lines;
 }
 
-export default function TodayTab({ day, lang, greeting }: { day: Day | null; lang: Lang; greeting: string }) {
+export default function TodayTab({ day, lang, greeting, onOpen }:
+  { day: Day | null; lang: Lang; greeting: string; onOpen: (s: Stop) => void }) {
   const t = T[lang];
   const [picked, setPicked] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
@@ -137,7 +138,7 @@ export default function TodayTab({ day, lang, greeting }: { day: Day | null; lan
                             s.done ? 'bg-accent-soft text-accent' : 'bg-ink text-white'}`}>
                     {s.done ? '✓' : s.seq}
                   </button>
-                  <button onClick={() => setPicked(s.id)} className="flex-1 min-w-0 text-left">
+                  <button onClick={() => onOpen(s)} className="flex-1 min-w-0 text-left">
                     <p className={`text-[0.875rem] font-medium truncate ${s.done ? 'text-ink-3' : ''}`}>{s.name}</p>
                     <p className="mt-0.5 flex items-center gap-1.5">
                       {s.done

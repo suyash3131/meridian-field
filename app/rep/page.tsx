@@ -5,6 +5,8 @@ import { PageHeader } from '../ui';
 import TodayTab, { type Day } from './today';
 import AttendanceTab, { type AttDay } from './attendance';
 import { T, type Lang } from './i18n';
+import ChatBar, { fillChat } from './chat-bar';
+import type { Stop } from './today';
 
 const AGENT_ID = 'baseAgent_agent_1789922892145_ie20jx4g5';
 
@@ -65,6 +67,7 @@ export default function RepView() {
   const [day, setDay] = useState<Day | null>(null);
   const [att, setAtt] = useState<AttDay[] | null>(null);
   const [calling, setCalling] = useState(false);
+  const [chatStop, setChatStop] = useState<string | null>(null);
   const mounted = useRef(false);
 
   const rep = reps.find((r) => r.id === repId);
@@ -139,12 +142,12 @@ export default function RepView() {
           useContainerHeight: true,
           // Short enough to fit the phone: the widget centres each starter on
           // one line and clips anything wider than the frame on both sides.
-          conversationStarters: [
-            'sharma medical 2 box 650, 15 days',
-            'krishna no order, cipla 10+3',
-            'what does sharma owe',
-          ],
         },
+        // The chat has three jobs, and the bar above it offers them as
+        // buttons, so the widget's own suggestion chips are left out.
+        chatInputPlaceholder: 'e.g. 2 box 650, 15 days',
+        // One line: the buttons above already say what the chat is for.
+        welcomeMessage: 'Tap Order, No order or Dues above, then type the rest.',
         theme: 'light',
         attachmentsEnabled: true,
         sessionId: `meridian-${rep.id}-${browserKey()}`,
@@ -163,6 +166,25 @@ export default function RepView() {
     document.body.appendChild(s);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rep?.id, weekday]);
+
+  // Which shop the chat is about: the one he tapped on Today, else the stop
+  // his phone says he is standing at. In the field that is GPS; here it is the
+  // "Standing outside" control, which publishes the same position.
+  const nearest = (() => {
+    if (!day?.position) return null;
+    const p = day.position;
+    const d = (s: Stop) => Math.hypot((s.lat - p.lat) * 111_000, (s.lng - p.lng) * 97_000);
+    const s = [...day.stops].sort((a, b) => d(a) - d(b))[0];
+    return s && d(s) < 300 ? s : null;
+  })();
+  const chatShop = day?.stops.find((s) => s.id === chatStop) ?? nearest;
+  useEffect(() => { setChatStop(null); }, [standingAt, repId]);
+
+  const openInChat = (s: Stop) => {
+    setChatStop(s.id);
+    setTab('chat');
+    fillChat(`${s.name} `);
+  };
 
   const hour = Number(ist({ hour: 'numeric', hour12: false }));
   const firstName = rep?.name.split(' ')[0] ?? '';
@@ -255,10 +277,11 @@ export default function RepView() {
                   conversation survives a look at the map */}
               <div className="relative flex-1 min-h-0">
                 <div className={`absolute inset-0 overflow-y-auto ${tab === 'today' ? '' : 'invisible'}`}>
-                  <TodayTab day={day} lang={lang} greeting={greeting} />
+                  <TodayTab day={day} lang={lang} greeting={greeting} onOpen={openInChat} />
                 </div>
-                <div className={`absolute inset-0 bg-white ${tab === 'chat' ? '' : 'invisible'}`}>
-                  <div id="counter-chat" className="h-full" />
+                <div className={`absolute inset-0 bg-white flex flex-col ${tab === 'chat' ? '' : 'invisible'}`}>
+                  <ChatBar stop={chatShop} lang={lang} />
+                  <div id="counter-chat" className="flex-1 min-h-0" />
                 </div>
                 <div className={`absolute inset-0 overflow-y-auto ${tab === 'attendance' ? '' : 'invisible'}`}>
                   <AttendanceTab days={att} lang={lang} />
