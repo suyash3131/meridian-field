@@ -137,10 +137,12 @@ export default function RepView() {
         embeddedDisplayConfig: {
           targetContainerId: 'counter-chat',
           useContainerHeight: true,
+          // Short enough to fit the phone: the widget centres each starter on
+          // one line and clips anything wider than the frame on both sides.
           conversationStarters: [
-            'sharma medical 2 box 650 tablets and 1 baby lotion, he wants 15 days',
-            'krishna chemist no order, cipla ne 10+3 diya hai',
-            'what does sharma medical owe',
+            'sharma medical 2 box 650, 15 days',
+            'krishna no order, cipla 10+3',
+            'what does sharma owe',
           ],
         },
         theme: 'light',
