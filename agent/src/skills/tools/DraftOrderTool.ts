@@ -1,6 +1,6 @@
 import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
-import { post, currentRep, rs } from '../../lib/api';
+import { post, currentRep, readBack, askText } from '../../lib/api';
 
 /**
  * Turn what the rep said into a priced, checked order — or into exactly one
@@ -50,35 +50,10 @@ export default class DraftOrderTool implements LuaTool {
     });
 
     // Everything below is formatting. No number is recomputed here.
-    if (result.kind === 'draft') {
-      const s = result.summary;
-      return {
-        draftId: result.draftId,
-        counter: s.outlet.name,
-        lines: s.lines.map((l: any) =>
-          `${l.qty} × ${l.name} (${l.pack})` + (l.freeQty ? ` + ${l.freeQty} free` : '')),
-        total: rs(s.totalPaise),
-        creditDays: s.creditDays,
-        schemeApplied: s.schemeDiscountPaise > 0 ? rs(s.schemeDiscountPaise) + ' of free goods' : null,
-        creditWarning: s.credit.overLimit
-          ? `This takes ${s.outlet.name} to ${rs(s.credit.afterPaise)} against a limit of ${rs(s.credit.limitPaise)}.`
-          : null,
-        visitEvidence: s.visit.verification,
-        offRoute: !s.visit.onBeat,
-        nextStep:
-          `Read the lines and the total back in one line, then ask only: Confirm? ` +
-          `When he agrees — yes, ok, haan, thik hai, a tick — call confirm_order with ` +
-          `draftId "${result.draftId}". Do NOT call draft_order again: this order already exists.`,
-      };
-    }
+    if (result.kind === 'draft') return readBack(result.draftId, result.summary);
 
     if (result.kind === 'question' || result.kind === 'duplicate')
-      return {
-        draftId: result.draftId,
-        askExactly: result.question,
-        options: result.options,
-        nextStep: 'Put this question to the rep as a short numbered list. Ask nothing else.',
-      };
+      return askText(result.draftId, result.question, result.options);
 
     if (result.kind === 'parked')
       return { parked: true, tellRep: result.message };

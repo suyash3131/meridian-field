@@ -60,3 +60,36 @@ export async function currentRep(claimedRepId?: string): Promise<{ id: string; n
 /** ₹ for display only. Every number crossing this boundary is integer paise. */
 export const rs = (paise: number | null | undefined): string =>
   '₹' + (Number(paise ?? 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+/**
+ * The exact words the rep sees. Built here, not by the model, so the model
+ * has nothing to paraphrase: it once replaced the resolved counter with the
+ * rep's own spelling, and once invented four products for a question.
+ */
+export function readBack(draftId: string, s: any) {
+  const lines = s.lines.map((l: any) =>
+    `${l.qty} × ${l.name} (${l.pack})` + (l.freeQty ? ` + ${l.freeQty} free` : '')).join(', ');
+  const terms = s.creditDays ? `, ${s.creditDays} days` : '';
+  const warn = s.credit.overLimit
+    ? `\n⚠ Takes ${s.outlet.name} to ${rs(s.credit.afterPaise)} against a ${rs(s.credit.limitPaise)} limit. It will go to your ASM.`
+    : '';
+  return {
+    draftId,
+    sendExactly: `${s.outlet.name} — ${lines} = ${rs(s.totalPaise)}${terms}.${warn}\nConfirm?`,
+    nextStep:
+      `Send sendExactly to the rep word for word, nothing before or after it, and stop. ` +
+      `When he agrees — yes, ok, haan, thik hai, a tick — call confirm_order with ` +
+      `draftId "${draftId}". Do NOT call draft_order again: this order already exists.`,
+  };
+}
+
+export function askText(draftId: string, question: string, options: { key: string; label: string }[]) {
+  return {
+    draftId,
+    sendExactly: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`)].join('\n'),
+    optionKeys: options.map((o, i) => ({ number: i + 1, key: o.key })),
+    nextStep:
+      'Send sendExactly to the rep word for word and stop. When he replies with a number, ' +
+      'call answer_choice with the matching key from optionKeys.',
+  };
+}

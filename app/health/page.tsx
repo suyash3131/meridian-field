@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Bar, Headline, PageHeader, Skeleton } from '../ui';
 
 type Health = {
   speed: { medianSeconds: number | null; p90Seconds: number | null; sample: number; target: number };
@@ -10,111 +11,136 @@ type Health = {
   phrasesWeKeepAskingAbout: { phrase: string; times: number; asked: number }[];
 };
 
+type Metric = {
+  label: string; figure: string; unit?: string; pct: number;
+  off: boolean; foot: string; marker?: number;
+};
+
+function MetricCard({ m }: { m: Metric }) {
+  return (
+    <div className={`card p-[18px] flex flex-col gap-2.5 ${m.off ? 'border-warn-line' : ''}`}>
+      <p className="label">{m.label}</p>
+      <p className="fig text-[2rem] leading-none font-medium">
+        {m.figure}{m.unit && <span className="text-[1.125rem] text-ink-4">{m.unit}</span>}
+      </p>
+      <div className="relative">
+        <Bar pct={m.pct} tone={m.off ? 'warn' : 'accent'} />
+        {m.marker != null && (
+          <span className="absolute -top-1 h-3.5 w-0.5 bg-ink" style={{ left: `${m.marker}%` }} aria-hidden />
+        )}
+      </div>
+      <p className="text-[0.75rem] text-ink-3">{m.foot}</p>
+    </div>
+  );
+}
+
 export default function AgentHealth() {
   const [d, setD] = useState<Health | null>(null);
   useEffect(() => { fetch('/api/manager/health').then((r) => r.json()).then(setD); }, []);
 
-  const metrics = !d ? [] : [
+  // Speed runs on a scale of 1.6× the target, with a tick where the target is,
+  // so "just over" reads as just over. The rest are shares of their limit.
+  const metrics: Metric[] = !d ? [] : [
     {
-      figure: d.speed.medianSeconds != null ? `${d.speed.medianSeconds}` : '—',
-      unit: 's',
       label: 'Time to a placed order',
-      meta: `median of ${d.speed.sample} · 90th percentile ${d.speed.p90Seconds ?? '—'}s · target under ${d.speed.target}s`,
+      figure: d.speed.medianSeconds != null ? `${d.speed.medianSeconds}` : '—', unit: 's',
+      pct: ((d.speed.medianSeconds ?? 0) / (d.speed.target * 1.6)) * 100,
+      marker: 100 / 1.6,
       off: (d.speed.medianSeconds ?? 0) > d.speed.target,
-      why: 'The thirty-second promise, measured rather than claimed.',
+      foot: `Target under ${d.speed.target}s · slowest 10% take ${d.speed.p90Seconds ?? '—'}s`,
     },
     {
-      figure: d.questions.perOrder.toFixed(2),
-      unit: '',
       label: 'Questions per order',
-      meta: `${d.questions.answeredWithoutAsking}% placed without asking anything · budget ${d.questions.budget}`,
+      figure: d.questions.perOrder.toFixed(2),
+      pct: (d.questions.perOrder / d.questions.budget) * 100,
       off: d.questions.perOrder > d.questions.budget,
-      why: 'If this drifts above one, reps stop using it — and they will not tell anyone first.',
+      foot: `Limit is ${d.questions.budget} · ${d.questions.answeredWithoutAsking}% needed no question`,
     },
     {
-      figure: `${d.matching.autoResolvedPct}`,
-      unit: '%',
-      label: 'Resolved without asking',
-      meta: `across ${d.matching.lines} order lines`,
+      label: 'Matched without asking',
+      figure: `${d.matching.autoResolvedPct}`, unit: '%',
+      pct: d.matching.autoResolvedPct,
       off: d.matching.autoResolvedPct < 80,
-      why: 'The alias table’s report card. It should climb every week on its own.',
+      foot: `Across ${d.matching.lines} order lines`,
     },
     {
-      figure: `${d.abandoned.count}`,
-      unit: '',
       label: 'Abandoned drafts',
-      meta: `${d.abandoned.pct}% of ${d.abandoned.started} conversations started`,
+      figure: `${d.abandoned.count}`,
+      pct: d.abandoned.pct,
       off: d.abandoned.pct > 10,
-      why: 'A rep who started and walked away has already decided. This moves before order volume does.',
+      foot: `${d.abandoned.pct}% of ${d.abandoned.started} started`,
     },
   ];
 
+  const offCount = metrics.filter((m) => m.off).length;
+
   return (
-    <div className="mx-auto max-w-[68rem] px-5 sm:px-8 py-10 lg:py-12">
-      <div className="rule-label mb-8">
-        <span className="label">Instrumentation</span>
-      </div>
+    <>
+      <PageHeader title="Agent health" sub={d ? `Last 4 weeks · ${d.abandoned.started} conversations` : 'Last 4 weeks'} />
 
-      <h1 className="answer">Is the agent being used, or is it merely not crashing?</h1>
+      <div className="px-5 sm:px-8 py-7 flex flex-col gap-5 max-w-[76rem]">
+        {!d ? (
+          <>
+            <Skeleton className="h-9 w-2/5" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[132px]" />)}
+            </div>
+          </>
+        ) : (
+          <>
+            <Headline
+              title={offCount === 0 ? 'Reps are using it, and it’s quick.'
+                : offCount === 1 ? 'Reps are using it. One number needs watching.'
+                : `${offCount} numbers need watching.`}
+            />
 
-      <p className="mt-5 text-[0.9375rem] leading-relaxed text-ink-soft measure">
-        Order volume tells you the product worked last month. These four tell you
-        whether it will still be working next month.
-      </p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {metrics.map((m) => <MetricCard key={m.label} m={m} />)}
+            </div>
 
-      {!d ? (
-        <div className="mt-12 h-7 w-2/5 bg-paper-sunk" aria-busy="true" />
-      ) : (
-        <>
-          <ul className="rows mt-12">
-            {metrics.map((m) => (
-              <li key={m.label} className="grid gap-x-8 gap-y-2 py-7
-                                           sm:grid-cols-[7.5rem_1fr] items-baseline">
-                <p className={`fig text-[2.25rem] leading-none tracking-tight
-                               ${m.off ? 'text-signal' : 'text-ink'}`}>
-                  {m.figure}
-                  <span className="text-[1.25rem] text-ink-faint">{m.unit}</span>
-                </p>
+            <section className="card overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4">
                 <div>
-                  <p className="text-[0.9375rem] font-medium">{m.label}</p>
-                  <p className="fig mt-1 text-[0.75rem] text-ink-faint">{m.meta}</p>
-                  <p className="mt-2.5 text-[0.8125rem] leading-relaxed text-ink-soft max-w-[54ch]">
-                    {m.why}
+                  <h2 className="text-[0.875rem] font-semibold">Words the agent still asks about</h2>
+                  <p className="mt-0.5 text-[0.8125rem] text-ink-2">
+                    Once a rep confirms the product, nobody is asked about that word again.
                   </p>
                 </div>
-              </li>
-            ))}
-          </ul>
+                {d.phrasesWeKeepAskingAbout.length > 0 && (
+                  <span className="pill fig ml-auto bg-track text-ink-2">{d.phrasesWeKeepAskingAbout.length}</span>
+                )}
+              </div>
 
-          <section className="mt-14">
-            <div className="rule-label mb-1">
-              <span className="label">Phrases we keep asking about</span>
-            </div>
-            <p className="pt-3 pb-4 text-[0.8125rem] leading-relaxed text-ink-soft measure">
-              Each of these cost a rep a question. Confirming the right product once writes a
-              learned alias, and the next rep who types it is never asked. This is a work
-              queue, not a chart — someone clears it on a Friday afternoon and the number above
-              goes up on its own.
-            </p>
-
-            {d.phrasesWeKeepAskingAbout.length === 0 ? (
-              <p className="py-4 text-[0.875rem] text-ink-soft">Nothing needed asking about.</p>
-            ) : (
-              <ul className="rows">
-                {d.phrasesWeKeepAskingAbout.map((p) => (
-                  <li key={p.phrase} className="row-hover -mx-3 px-3 py-2.5
-                                                flex items-baseline justify-between gap-6">
-                    <span className="fig text-[0.8125rem]">“{p.phrase}”</span>
-                    <span className="fig text-[0.75rem] text-ink-faint whitespace-nowrap">
-                      asked {p.asked} of {p.times}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
-      )}
-    </div>
+              {d.phrasesWeKeepAskingAbout.length === 0 ? (
+                <p className="px-5 pb-5 text-[0.875rem] text-ink-2">Nothing needed asking about.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)] px-5 py-2.5
+                                  border-t border-track bg-sunk text-[0.75rem] font-medium text-ink-3">
+                    <span>What the rep typed</span><span>Times typed</span><span>Had to ask</span>
+                  </div>
+                  <ul className="rows border-t border-track">
+                    {d.phrasesWeKeepAskingAbout.map((p) => {
+                      const share = p.times ? (p.asked / p.times) * 100 : 0;
+                      return (
+                        <li key={p.phrase}
+                            className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center px-5 py-3">
+                          <span className="fig text-[0.875rem]">“{p.phrase}”</span>
+                          <span className="fig text-[0.8125rem]">{p.times}</span>
+                          <span className="flex items-center gap-2.5">
+                            <span className="fig text-[0.8125rem] w-4">{p.asked}</span>
+                            <Bar pct={share} tone={share >= 50 ? 'danger' : 'ink'} className="w-20" />
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </>
   );
 }

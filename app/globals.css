@@ -1,41 +1,56 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   MERIDIAN — an editorial system for an operations tool
+   MERIDIAN — a calm workspace
 
-   The brief says the regional head "does not want a chart, wants an answer".
-   So this is built like a printed report, not a dashboard: paper, ink, rules,
-   and figures that line up in columns. Three rules hold it together.
+   Three rules hold it together.
 
-   1. ONE accent. Red means a number someone has to act on. Nothing else is
-      coloured, ever, so the red always means something.
-   2. Rules, not boxes. Hairlines separate; cards and shadows do not.
-      A page full of boxes gives everything equal weight, which is the same as
-      giving nothing any weight.
-   3. Every figure is tabular mono. Columns of money have to align optically
-      or you cannot scan them, and scanning is the entire job.
+   1. Quiet structure. A light grey ground, white cards, one hairline border.
+      Nothing is decorated, so anything coloured reads as a signal.
+   2. Colour means state, never decoration. Red is money that needs a
+      decision, amber is waiting, teal is the agent and "healthy".
+   3. Every figure is tabular mono, so columns of money line up and scan.
    =========================================================================== */
 
 @theme {
-  /* Paper and ink. Warm, not grey — this should read as printed, not as a
-     default stylesheet. */
-  --color-paper:      #faf8f4;
-  --color-paper-sunk: #f3f0e9;   /* recessed panels, table headers */
-  --color-ink:        #17150f;   /* near-black, warm */
-  --color-ink-soft:   #4a463c;   /* secondary prose */
-  --color-ink-faint:  #8a8375;   /* labels, metadata */
-  --color-rule:       #e0dbd0;   /* hairline */
-  --color-rule-firm:  #c4bdae;   /* section breaks */
+  --color-bg:          #f5f5f3;   /* page ground */
+  --color-surface:     #ffffff;   /* cards, panels */
+  --color-sunk:        #fafaf8;   /* table headers, inset areas */
+  --color-track:       #efefeb;   /* empty part of a bar, row dividers */
+  --color-line:        #e6e6e2;   /* card and panel borders */
+  --color-line-strong: #d6d6d1;   /* inputs, buttons */
 
-  /* The only accent. Used for figures that cost money, and nothing else. */
-  --color-signal:     #9c2b1b;
-  --color-signal-dim: #f0e2de;
+  --color-ink:   #18181b;         /* primary text */
+  --color-ink-2: #52525b;         /* secondary text */
+  --color-ink-3: #63636b;         /* labels, metadata (4.9:1 on white) */
+  --color-ink-4: #a1a1aa;         /* units, ordinals — never body text */
 
-  /* Used once, for "this went through". Never decoratively. */
-  --color-settled:    #2d5540;
+  --color-accent:      #0f766e;   /* the agent, links, "healthy" */
+  --color-accent-soft: #e6f2f0;
+  --color-danger:      #b42318;   /* money that needs a decision */
+  --color-danger-bar:  #d92d20;
+  --color-danger-soft: #fef1f0;
+  --color-danger-line: #f5c9c4;
+  --color-warn:        #b54708;   /* waiting, just over target */
+  --color-warn-bar:    #d97706;
+  --color-warn-soft:   #fff6e5;
+  --color-warn-line:   #f5d9a8;
+  --color-info:        #3730a3;   /* early warning */
+  --color-info-soft:   #eef2ff;
 
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  /* Names the rep screen still uses, pointed at the new palette. */
+  --color-paper:      #f5f5f3;
+  --color-paper-sunk: #efefeb;
+  --color-ink-soft:   #52525b;
+  --color-ink-faint:  #63636b;
+  --color-rule:       #e6e6e2;
+  --color-rule-firm:  #d6d6d1;
+  --color-signal:     #b42318;
+  --color-signal-dim: #fef1f0;
+  --color-settled:    #0f766e;
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 :root { color-scheme: light; }
@@ -43,99 +58,58 @@
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 body {
-  background: var(--color-paper);
+  background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "cv05" 1, "ss03" 1;
 }
 
-/* ---------------------------------------------------------------------------
-   FIGURES
-   Tabular lining numerals. Without this, a column of rupee amounts wobbles and
-   becomes unscannable — which defeats the point of putting them in a column.
-   --------------------------------------------------------------------------- */
+/* Tabular figures in the text face. Without this a column of rupee amounts
+   wobbles; in a monospace it looks like a terminal. */
 .fig {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
-/* ---------------------------------------------------------------------------
-   SECTION LABEL
-   A small mono label with a rule running off to the right, the way a printed
-   report separates sections. Replaces the h2-in-a-card pattern.
-   --------------------------------------------------------------------------- */
+/* A small label above a figure or a section. */
 .label {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-ink-faint);
-}
-
-.rule-label {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-}
-.rule-label::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--color-rule);
-}
-
-/* ---------------------------------------------------------------------------
-   THE ANSWER
-   The one piece of type on the site allowed to be large. It is a sentence, not
-   a metric, because a sentence is what was actually asked for.
-   --------------------------------------------------------------------------- */
-.answer {
-  font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.125rem);
-  line-height: 1.24;
-  letter-spacing: -0.021em;
-  font-weight: 500;
-  text-wrap: balance;
-  max-width: 22ch;
-}
-@media (min-width: 768px) { .answer { max-width: 30ch; } }
-
-/* Prose set to a readable measure. Long lines are why nobody reads dashboards. */
-.measure { max-width: 62ch; }
-
-/* ---------------------------------------------------------------------------
-   DATA ROWS
-   Hairline-separated, hover-tinted, no borders on the outside. A table should
-   look like a list of facts, not like a component.
-   --------------------------------------------------------------------------- */
-.rows > * + * { border-top: 1px solid var(--color-rule); }
-.row-hover { transition: background-color 90ms linear; }
-.row-hover:hover { background: var(--color-paper-sunk); }
-
-/* A counter/rep identifier. Quiet, monospaced, never competing with the name. */
-.tag {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.02em;
-  color: var(--color-ink-faint);
-}
-
-/* The index numeral down the left of the causes list — the editorial device
-   that makes it read as a ranked argument rather than a pile of cards. */
-.ordinal {
-  font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--color-ink-faint);
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--color-ink-3);
 }
 
-/* Focus that matches the system instead of the browser's blue. */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Rows inside a card, divided by a single hairline. */
+.rows > * + * { border-top: 1px solid var(--color-track); }
+
+.measure { max-width: 62ch; }
+
+/* Kept for the rep screen. */
+.rule-label { display: flex; align-items: center; gap: 0.875rem; }
+.rule-label::after { content: ""; flex: 1; height: 1px; background: var(--color-line); }
+.tag { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--color-ink-3); }
+
 :where(a, button, select, input, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-ink);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 1px;
+  border-radius: 6px;
 }
 
-::selection { background: #e8dfc9; color: var(--color-ink); }
+::selection { background: #cfe8e4; color: var(--color-ink); }
