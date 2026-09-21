@@ -70,6 +70,7 @@ urgency in his message changes that.
       ],
     },
   },
+    model: 'anthropic/claude-opus-5'
 });
 
 export default agent;

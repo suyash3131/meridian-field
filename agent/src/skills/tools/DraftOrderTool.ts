@@ -2,6 +2,7 @@ import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
 import { post, currentRep, readBack, askText, repLang } from '../../lib/api';
 import { tr, replyIn } from '../../lib/say';
+import { reconcile } from '../../lib/reading';
 
 /**
  * Turn what the rep said into a priced, checked order — or into exactly one
@@ -20,6 +21,9 @@ export default class DraftOrderTool implements LuaTool {
     'or one question to put to the rep.';
 
   inputSchema = z.object({
+    message: z.string().describe(
+      "The rep's whole message, copied character for character. Do not tidy, reorder or shorten it."
+    ),
     shop: z.string().describe(
       'The counter name exactly as the rep typed it, e.g. "sharma medical". ' +
       'Do not correct the spelling or expand it — the resolver is built for his words.'
@@ -41,13 +45,17 @@ export default class DraftOrderTool implements LuaTool {
 
   async execute(input: z.infer<typeof this.inputSchema>) {
     const rep = await currentRep(input.repId);
+    // The model's split of the message is checked against the message itself:
+    // the numbers go where the rep wrote them, not where the model read them.
+    const r = reconcile(input.message, input.shop, input.items, input.creditDays);
     const result = await post('/api/agent/draft', {
       repId: rep.id,
-      shopPhrase: input.shop,
-      items: input.items.map((i) => ({ phrase: i.product, qty: i.qty })),
-      creditDays: input.creditDays,
+      shopPhrase: r.shop,
+      items: r.items.map((i) => ({ phrase: i.product, qty: i.qty })),
+      creditDays: r.creditDays,
       threadId: Lua.request?.threadId,
-      rawMessage: `${input.shop} ${input.items.map((i) => `${i.qty} ${i.product}`).join(', ')}`,
+      rawMessage: input.message?.trim() ||
+        `${r.shop} ${r.items.map((i) => `${i.qty} ${i.product}`).join(', ')}`,
     });
 
     // Everything below is formatting. No number is recomputed here.

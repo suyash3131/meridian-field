@@ -52,10 +52,18 @@ export function tr(text: string, lang: Lang): string {
 // Messages built from figures.
 // -----------------------------------------------------------------------------
 
+/** " (strip of 15)", unless the name already says the size: "Baby Lotion 200ml"
+ *  needs no "(200ml bottle)" after it. */
+function packNote(name: string, pack: string): string {
+  if (!pack) return '';
+  const size = pack.split(' ')[0].toLowerCase();
+  return name.toLowerCase().includes(size) ? '' : ` (${pack})`;
+}
+
 export function readBackText(s: any, lang: Lang): string {
   const free = lang === 'hi' ? 'मुफ़्त' : 'free';
   const lines = s.lines.map((l: any) =>
-    `${l.qty} × ${l.name} (${l.pack})` + (l.freeQty ? ` + ${l.freeQty} ${free}` : '')).join(', ');
+    `${l.qty} × ${l.name}${packNote(l.name, l.pack)}` + (l.freeQty ? ` + ${l.freeQty} ${free}` : '')).join(', ');
   const total = rsOf(s.totalPaise);
 
   if (lang === 'hi') {
