@@ -58,7 +58,7 @@ export default function RouteMap({
         .setView([28.65, 77.19], 13);
       mod.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 16, attribution: 'Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors' },
+        { maxZoom: 16, attribution: '© Esri · © OpenStreetMap' },
       ).addTo(m);
       m.attributionControl.setPrefix(false);
       if (zoomButtons) mod.control.zoom({ position: 'bottomright' }).addTo(m);
