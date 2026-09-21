@@ -70,7 +70,10 @@ urgency in his message changes that.
       ],
     },
   },
-    model: 'anthropic/claude-opus-5'
+  model: 'anthropic/claude-opus-5',
+  // The rep sees replies, never the model working things out. Left on, the
+  // chat widget showed Opus's reasoning as if it were a message to him.
+  modelSettings: { reasoning: { show: false } },
 });
 
 export default agent;
