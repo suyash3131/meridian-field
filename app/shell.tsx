@@ -16,6 +16,7 @@ const Icon = {
   today: <path d="M3 11l9-7 9 7M5 10v10h14V10" />,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   pulse: <path d="M3 12h4l3-7 4 14 3-7h4" />,
+  pin: <><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>,
   phone: <><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18h2" /></>,
 };
 
@@ -32,6 +33,7 @@ const MANAGER = [
   { href: '/', label: 'Today', icon: Icon.today },
   { href: '/ask', label: 'Eight o’clock', icon: Icon.clock },
   { href: '/health', label: 'Agent health', icon: Icon.pulse },
+  { href: '/counters', label: 'Counters & routes', icon: Icon.pin },
 ];
 const FIELD = [{ href: '/rep', label: 'At the counter', icon: Icon.phone }];
 

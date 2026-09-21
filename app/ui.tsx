@@ -7,8 +7,8 @@ import { useCompanion } from './shell';
 export const rs = (p: number | string) => '₹' + Math.round(Number(p) / 100).toLocaleString('en-IN');
 
 /** The bar across the top of every manager page. */
-export function PageHeader({ title, sub, children }:
-  { title: string; sub?: React.ReactNode; children?: React.ReactNode }) {
+export function PageHeader({ title, sub, children, companion = true }:
+  { title: string; sub?: React.ReactNode; children?: React.ReactNode; companion?: boolean }) {
   const { setOpen } = useCompanion();
   return (
     <header className="h-16 flex items-center gap-4 px-5 sm:px-8 border-b border-line">
@@ -16,7 +16,7 @@ export function PageHeader({ title, sub, children }:
       {sub && <p className="hidden sm:block text-[0.8125rem] text-ink-3">{sub}</p>}
       <div className="ml-auto flex items-center gap-2">
         {children}
-        <button
+        {companion && <button
           onClick={() => setOpen(true)}
           className="xl:hidden inline-flex items-center gap-2 h-9 px-3 rounded-[9px] bg-ink text-white
                      text-[0.8125rem] font-medium"
@@ -24,7 +24,7 @@ export function PageHeader({ title, sub, children }:
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
                strokeLinecap="round" aria-hidden><path d="M4 12h3l2-5 3 10 2-5h6" /></svg>
           Ask Meridian
-        </button>
+        </button>}
       </div>
     </header>
   );
