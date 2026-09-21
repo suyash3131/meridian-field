@@ -82,3 +82,28 @@ export const heldText = (paise: number, lang: Lang) =>
 
 export const notedText = (outlet: string, lang: Lang) =>
   lang === 'hi' ? `${outlet} पर दर्ज किया। ✓` : `Noted at ${outlet}. ✓`;
+
+/** What a counter owes and what to know before walking in. Three lines at
+ *  most, in the order he can act on them. Built here because a model once
+ *  turned "₹21,000 past terms" into "the terms used to be ₹21,000". */
+export function briefText(b: {
+  counter: string; owesPaise: number; roomPaise: number; overduePaise: number;
+  nearExpiry: { name: string; batch_no: string; days: number }[]; usuallyBuys: string[];
+}, lang: Lang): string {
+  const hi = lang === 'hi';
+  const lines = [
+    hi ? `${b.counter} — बकाया ${rsOf(b.owesPaise)}, क्रेडिट में ${rsOf(Math.max(0, b.roomPaise))} बाकी।`
+       : `${b.counter} — owes ${rsOf(b.owesPaise)}, ${rsOf(Math.max(0, b.roomPaise))} credit left.`,
+  ];
+  if (b.overduePaise > 0)
+    lines.push(hi ? `इसमें ${rsOf(b.overduePaise)} की पेमेंट की तारीख निकल चुकी है। पहले वसूली करें।`
+                  : `${rsOf(b.overduePaise)} of it is overdue. Collect first.`);
+  const e = b.nearExpiry[0];
+  if (e)
+    lines.push(hi ? `जल्दी एक्सपायर: ${e.name}, बैच ${e.batch_no}, ${e.days} दिन में।`
+                  : `Expiring soon: ${e.name}, batch ${e.batch_no}, in ${e.days} days.`);
+  else if (b.usuallyBuys.length)
+    lines.push(hi ? `आमतौर पर लेते हैं: ${b.usuallyBuys.slice(0, 3).join(', ')}।`
+                  : `Usually buys: ${b.usuallyBuys.slice(0, 3).join(', ')}.`);
+  return lines.join('\n');
+}

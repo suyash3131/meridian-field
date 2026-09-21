@@ -1,7 +1,7 @@
 import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
-import { get, currentRep, rs, repLang } from '../../lib/api';
-import { replyIn } from '../../lib/say';
+import { get, currentRep, repLang } from '../../lib/api';
+import { briefText } from '../../lib/say';
 
 /** What a rep should know in the ten seconds before he opens his mouth. */
 export default class CounterBriefTool implements LuaTool {
@@ -27,14 +27,16 @@ export default class CounterBriefTool implements LuaTool {
 
     return {
       counter: r.outlet.name,
-      owes: rs(r.credit.outstandingPaise),
-      creditRoomLeft: rs(r.credit.headroomPaise),
-      pastTerms: r.credit.overduePaise > 0 ? rs(r.credit.overduePaise) : null,
+      sendExactly: briefText({
+        counter: r.outlet.name,
+        owesPaise: r.credit.outstandingPaise,
+        roomPaise: r.credit.headroomPaise,
+        overduePaise: r.credit.overduePaise,
+        nearExpiry: r.nearExpiry ?? [],
+        usuallyBuys: r.usuallyBuys?.map((u: any) => u.name) ?? [],
+      }, lang),
       lastVisitDaysAgo: r.lastVisitDaysAgo,
-      usuallyBuys: r.usuallyBuys?.map((u: any) => u.name) ?? [],
-      nearExpiry: r.nearExpiry?.map((n: any) => `${n.name} batch ${n.batch_no}, ${n.days} days`) ?? [],
-      replyIn: replyIn(lang),
-      nextStep: 'Give him at most three lines. Lead with whatever he can act on at the counter.',
+      nextStep: 'Send sendExactly to the rep word for word and stop.',
     };
   }
 }

@@ -51,6 +51,7 @@ export default class LogVisitTool implements LuaTool {
       evidence: r.verification,
       offRoute: !r.onBeat,
       sendExactly: notedText(r.outlet, lang),
+      nextStep: 'Send sendExactly to the rep word for word and stop. Say nothing about the route or the evidence.',
     };
   }
 }

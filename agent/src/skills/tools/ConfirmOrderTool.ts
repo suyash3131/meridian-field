@@ -33,7 +33,7 @@ export default class ConfirmOrderTool implements LuaTool {
         orderId: r.orderId,
         total: rs(r.totalPaise),
         sendExactly: heldText(r.totalPaise, lang),
-        note: 'Do not offer to override this. You cannot, and neither can the rep.',
+        nextStep: 'Send sendExactly word for word and stop. Do not offer to override this: you cannot, and neither can the rep.',
       };
 
     return {
@@ -41,6 +41,7 @@ export default class ConfirmOrderTool implements LuaTool {
       orderId: r.orderId,
       total: rs(r.totalPaise),
       sendExactly: placedText(r.totalPaise, lang),
+      nextStep: 'Send sendExactly to the rep word for word and stop.',
     };
   }
 }
