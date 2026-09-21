@@ -32,9 +32,21 @@ const AT_THE_COUNTER_M = 200;
 /** Beyond this, location rules a counter out however close the name is. */
 const NOWHERE_NEAR_M = 800;
 
+/** Words half the counters in India share. They are stripped before deciding
+ *  whether a name really matches, because "city chemist" and "krishna chemist"
+ *  score 0.40 on "chemist" alone, the same as a genuine typo. */
+const GENERIC = /\b(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?|house|shop|and|co|the)\b/g;
+const GENERIC_SQL =
+  '\\m(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?|house|shop|and|co|the)\\M';
+
+/** The distinctive part of the name must be at least this close for location
+ *  or a score gap to settle it. Below it, the rep named a counter we do not
+ *  have, and standing next to a different one does not make it that one. */
+const NAME_AGREES = 0.3;
+
 export type Decision<T> =
   | { status: 'resolved'; value: T; confidence: number; method: string }
-  | { status: 'ambiguous'; candidates: T[]; reason: string }
+  | { status: 'ambiguous'; candidates: T[]; reason: string; unknown?: boolean }
   | { status: 'none'; reason: string };
 
 export type OutletMatch = {
@@ -42,6 +54,7 @@ export type OutletMatch = {
   lat: number; lng: number;
   credit_limit_paise: string; credit_terms_days: number;
   score: number; exact: boolean; distance_m: number | null; on_beat: boolean;
+  core_score: number;
 };
 
 export type SkuMatch = {
@@ -73,6 +86,7 @@ export async function resolveOutlet(
 ): Promise<Decision<OutletMatch>> {
   const q = normalise(text);
   if (!q) return { status: 'none', reason: 'no shop name in the message' };
+  const core = q.replace(GENERIC, ' ').replace(/\s+/g, ' ').trim();
 
   const rows = await sql<OutletMatch>(
     `WITH scored AS (
@@ -82,7 +96,11 @@ export async function resolveOutlet(
                 COALESCE(MAX(similarity(a.alias, $1)), 0),
                 similarity(lower(o.name), $1)
               )::float                                   AS score,
-              COALESCE(bool_or(a.alias = $1), false)     AS exact
+              COALESCE(bool_or(a.alias = $1), false)     AS exact,
+              GREATEST(
+                COALESCE(MAX(similarity(trim(regexp_replace(a.alias, $4, ' ', 'g')), $3)), 0),
+                similarity(trim(regexp_replace(lower(o.name), $4, ' ', 'g')), $3)
+              )::float                                   AS core_score
          FROM outlets o
          LEFT JOIN outlet_aliases a ON a.outlet_id = o.id
         WHERE o.status = 'active'
@@ -90,7 +108,7 @@ export async function resolveOutlet(
      )
      SELECT * FROM scored WHERE score >= $2 OR exact
      ORDER BY exact DESC, score DESC LIMIT 8`,
-    [q, SIMILARITY_FLOOR]
+    [q, SIMILARITY_FLOOR, core, GENERIC_SQL]
   );
   if (!rows.length) return { status: 'none', reason: `no counter matches "${text}"` };
 
@@ -119,18 +137,30 @@ export async function resolveOutlet(
   }).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 
   const [top, next] = scored;
+  const agrees = (r: OutletMatch) => r.exact || (core !== '' && r.core_score >= NAME_AGREES);
+
+  // Nothing on file answers to that name. Never book it to whichever counter
+  // happens to be nearest: ask, nearest first, and let the rep say.
+  if (!scored.some(agrees))
+    return {
+      status: 'ambiguous',
+      unknown: true,
+      candidates: [...scored].sort((a, b) =>
+        (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity)).slice(0, 3),
+      reason: `no counter on file is called "${text}"`,
+    };
 
   // Standing at one counter and nowhere near the other settles it outright.
   // This is the whole reason "sharma medical" never has to be disambiguated
   // by asking: the two Sharmas are 2.1 km apart.
-  if (top.distance_m !== null && top.distance_m <= AT_THE_COUNTER_M &&
+  if (agrees(top) && top.distance_m !== null && top.distance_m <= AT_THE_COUNTER_M &&
       (!next || (next.distance_m ?? Infinity) >= NOWHERE_NEAR_M))
     return { status: 'resolved', value: top, confidence: 0.99, method: 'location' };
 
   if (top.exact && (!next || !next.exact))
     return { status: 'resolved', value: top, confidence: 0.95, method: 'known spelling' };
 
-  if (!next || top.score - next.score >= CLEAR_WIN_GAP)
+  if (agrees(top) && (!next || top.score - next.score >= CLEAR_WIN_GAP))
     return { status: 'resolved', value: top, confidence: Math.min(0.94, top.score), method: 'name' };
 
   return {
@@ -191,7 +221,6 @@ export async function resolveSku(
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 
   const [top, next] = scored;
-
   if (!next || top.score - next.score >= CLEAR_WIN_GAP)
     return {
       status: 'resolved',

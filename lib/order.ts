@@ -191,7 +191,10 @@ export async function draftOrder(proposal: Proposal): Promise<DraftResult> {
 
   if (outletDecision.status === 'ambiguous') {
     const draftId = await openDraft(p, null, { pendingOutlet: p.shopPhrase });
-    return askOnce(draftId, p, 'Which counter?',
+    // A name we have never heard of reads differently from two names that
+    // both fit: the rep should know it was not simply a typo we could not place.
+    return askOnce(draftId, p,
+      outletDecision.unknown ? `No counter called "${p.shopPhrase}" on file. Which one is it?` : 'Which counter?',
       outletDecision.candidates.map((c) => ({
         key: c.id,
         label: `${c.name}, ${c.area}` + (c.distance_m !== null ? ` (${c.distance_m}m away)` : ''),
