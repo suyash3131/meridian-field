@@ -1,6 +1,7 @@
 import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
-import { post, currentRep } from '../../lib/api';
+import { post, currentRep, repLang } from '../../lib/api';
+import { notedText, replyIn, tr } from '../../lib/say';
 
 /**
  * A counter that gave no order today.
@@ -41,14 +42,15 @@ export default class LogVisitTool implements LuaTool {
       threadId: Lua.request?.threadId,
       rawMessage: `${input.shop} — ${input.reason}`,
     });
+    const lang = await repLang();
     if (r.error)
-      return { error: r.error, options: r.options ?? null };
+      return { error: tr(r.error, lang), options: r.options ?? null, replyIn: replyIn(lang) };
     return {
       recorded: true,
       counter: r.outlet,
       evidence: r.verification,
       offRoute: !r.onBeat,
-      tellRep: `Noted at ${r.outlet}. ✓`,
+      sendExactly: notedText(r.outlet, lang),
     };
   }
 }

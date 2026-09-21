@@ -1,6 +1,7 @@
 import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
-import { post, readBack, askText } from '../../lib/api';
+import { post, readBack, askText, repLang } from '../../lib/api';
+import { tr, replyIn } from '../../lib/say';
 
 /** The rep answered the one question. Feed his choice back and finish. */
 export default class AnswerChoiceTool implements LuaTool {
@@ -20,10 +21,11 @@ export default class AnswerChoiceTool implements LuaTool {
   async execute(input: z.infer<typeof this.inputSchema>) {
     const result = await post('/api/agent/answer', input);
 
-    if (result.kind === 'draft') return readBack(result.draftId, result.summary);
+    const lang = await repLang();
+    if (result.kind === 'draft') return readBack(result.draftId, result.summary, lang);
     if (result.kind === 'question' || result.kind === 'duplicate')
-      return askText(result.draftId, result.question, result.options);
-    if (result.kind === 'parked') return { parked: true, tellRep: result.message };
-    return { error: result.message ?? 'that answer did not fit the question' };
+      return askText(result.draftId, result.question, result.options, lang);
+    if (result.kind === 'parked') return { parked: true, sendExactly: tr(result.message, lang) };
+    return { error: tr(result.message ?? 'that answer did not fit the question', lang), replyIn: replyIn(lang) };
   }
 }

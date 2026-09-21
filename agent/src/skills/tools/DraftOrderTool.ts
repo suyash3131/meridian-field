@@ -1,6 +1,7 @@
 import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
-import { post, currentRep, readBack, askText } from '../../lib/api';
+import { post, currentRep, readBack, askText, repLang } from '../../lib/api';
+import { tr, replyIn } from '../../lib/say';
 
 /**
  * Turn what the rep said into a priced, checked order — or into exactly one
@@ -50,14 +51,15 @@ export default class DraftOrderTool implements LuaTool {
     });
 
     // Everything below is formatting. No number is recomputed here.
-    if (result.kind === 'draft') return readBack(result.draftId, result.summary);
+    const lang = await repLang();
+    if (result.kind === 'draft') return readBack(result.draftId, result.summary, lang);
 
     if (result.kind === 'question' || result.kind === 'duplicate')
-      return askText(result.draftId, result.question, result.options);
+      return askText(result.draftId, result.question, result.options, lang);
 
     if (result.kind === 'parked')
-      return { parked: true, tellRep: result.message };
+      return { parked: true, sendExactly: tr(result.message, lang) };
 
-    return { error: result.message ?? 'could not build that order' };
+    return { error: tr(result.message ?? 'could not build that order', lang), replyIn: replyIn(lang) };
   }
 }

@@ -76,6 +76,16 @@ export default function RepView() {
   useEffect(() => { const l = store('meridian_lang'); if (l === 'hi' || l === 'en') setLang(l); }, []);
   const pickLang = (l: Lang) => { setLang(l); store('meridian_lang', l); };
 
+  // The agent's tools read the language from the CRM, not from the chat, so
+  // the choice is saved there too: for this rep, whenever it or he changes.
+  useEffect(() => {
+    if (!repId) return;
+    fetch('/api/rep/lang', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ repId, lang }),
+    }).catch(() => {});
+  }, [repId, lang]);
+
   useEffect(() => {
     fetch('/api/reps').then((r) => r.json()).then((d) => {
       setReps(d.reps); setWeekday(d.weekday);

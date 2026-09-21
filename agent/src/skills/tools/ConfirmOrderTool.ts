@@ -1,6 +1,7 @@
 import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
-import { post, rs } from '../../lib/api';
+import { post, rs, repLang } from '../../lib/api';
+import { placedText, heldText } from '../../lib/say';
 
 /**
  * Commit the order the rep just confirmed.
@@ -23,6 +24,7 @@ export default class ConfirmOrderTool implements LuaTool {
   async execute(input: z.infer<typeof this.inputSchema>) {
     const r = await post('/api/agent/confirm', input);
     if (r.error) return { error: r.error };
+    const lang = await repLang();
 
     if (r.status === 'held_credit')
       return {
@@ -30,9 +32,7 @@ export default class ConfirmOrderTool implements LuaTool {
         held: true,
         orderId: r.orderId,
         total: rs(r.totalPaise),
-        tellRep:
-          `Saved — ${rs(r.totalPaise)}. It crosses this counter's credit limit, so it has gone ` +
-          `to your ASM for approval. Visit recorded. Move on.`,
+        sendExactly: heldText(r.totalPaise, lang),
         note: 'Do not offer to override this. You cannot, and neither can the rep.',
       };
 
@@ -40,7 +40,7 @@ export default class ConfirmOrderTool implements LuaTool {
       placed: true,
       orderId: r.orderId,
       total: rs(r.totalPaise),
-      tellRep: `Done — ${rs(r.totalPaise)}. Visit recorded.`,
+      sendExactly: placedText(r.totalPaise, lang),
     };
   }
 }

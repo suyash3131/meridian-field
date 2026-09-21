@@ -1,4 +1,5 @@
 import { User } from 'lua-cli';
+import { type Lang, readBackText, replyIn, tr } from './say';
 
 /**
  * The CRM this agent writes into. Every rule that matters — which counter,
@@ -61,33 +62,41 @@ export async function currentRep(claimedRepId?: string): Promise<{ id: string; n
 export const rs = (paise: number | null | undefined): string =>
   '₹' + (Number(paise ?? 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
+/** The language this rep chose in the app, read from the CRM, never from the
+ *  model. Anything unexpected falls back to English. */
+export async function repLang(): Promise<Lang> {
+  try {
+    const user = await User.get();
+    const id = (user as any)?.repId as string | undefined;
+    if (!id) return 'en';
+    const r = await get<{ lang?: string }>(`/api/rep/lang?repId=${encodeURIComponent(id)}`);
+    return r.lang === 'hi' ? 'hi' : 'en';
+  } catch { return 'en'; }
+}
+
 /**
  * The exact words the rep sees. Built here, not by the model, so the model
  * has nothing to paraphrase: it once replaced the resolved counter with the
  * rep's own spelling, and once invented four products for a question.
  */
-export function readBack(draftId: string, s: any) {
-  const lines = s.lines.map((l: any) =>
-    `${l.qty} × ${l.name} (${l.pack})` + (l.freeQty ? ` + ${l.freeQty} free` : '')).join(', ');
-  const terms = s.creditDays ? `, ${s.creditDays} days` : '';
-  const warn = s.credit.overLimit
-    ? `\n⚠ Takes ${s.outlet.name} to ${rs(s.credit.afterPaise)} against a ${rs(s.credit.limitPaise)} limit. It will go to your ASM.`
-    : '';
+export function readBack(draftId: string, s: any, lang: Lang = 'en') {
   return {
     draftId,
-    sendExactly: `${s.outlet.name} — ${lines} = ${rs(s.totalPaise)}${terms}.${warn}\nConfirm?`,
+    sendExactly: readBackText(s, lang),
+    replyIn: replyIn(lang),
     nextStep:
       `Send sendExactly to the rep word for word, nothing before or after it, and stop. ` +
-      `When he agrees — yes, ok, haan, thik hai, a tick — call confirm_order with ` +
+      `When he agrees — yes, ok, haan, thik hai, ha, a tick — call confirm_order with ` +
       `draftId "${draftId}". Do NOT call draft_order again: this order already exists.`,
   };
 }
 
-export function askText(draftId: string, question: string, options: { key: string; label: string }[]) {
+export function askText(draftId: string, question: string, options: { key: string; label: string }[], lang: Lang = 'en') {
   return {
     draftId,
-    sendExactly: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`)].join('\n'),
+    sendExactly: [tr(question, lang), ...options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)].join('\n'),
     optionKeys: options.map((o, i) => ({ number: i + 1, key: o.key })),
+    replyIn: replyIn(lang),
     nextStep:
       'Send sendExactly to the rep word for word and stop. When he replies with a number, ' +
       'call answer_choice with the matching key from optionKeys.',

@@ -41,7 +41,10 @@ CREATE TABLE reps (
   name        TEXT NOT NULL,
   phone       TEXT NOT NULL UNIQUE,       -- how WhatsApp would identify them
   asm_id      TEXT NOT NULL REFERENCES managers(id),
-  region      TEXT NOT NULL
+  region      TEXT NOT NULL,
+  -- The language he chose in the app. The agent's tools read it and write
+  -- their replies in it, so it never depends on the model remembering.
+  lang        TEXT NOT NULL DEFAULT 'en' CHECK (lang IN ('en', 'hi'))
 );
 
 -- =============================================================================
