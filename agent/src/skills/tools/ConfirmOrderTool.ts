@@ -33,7 +33,7 @@ export default class ConfirmOrderTool implements LuaTool {
       return {
         alreadyPlaced: true,
         orderId: r.orderId,
-        sendExactly: alreadyText(r.totalPaise, r.status === 'held_credit', lang),
+        sendExactly: alreadyText(r.totalPaise, r.status === 'held_credit', lang, r.outlet),
         nextStep: 'Send sendExactly word for word and stop. Nothing new was placed.',
       };
 
@@ -43,7 +43,7 @@ export default class ConfirmOrderTool implements LuaTool {
         held: true,
         orderId: r.orderId,
         total: rs(r.totalPaise),
-        sendExactly: heldText(r.totalPaise, lang),
+        sendExactly: heldText(r.totalPaise, lang, r.outlet),
         nextStep: 'Send sendExactly word for word and stop. Do not offer to override this: you cannot, and neither can the rep.',
       };
 
@@ -51,7 +51,7 @@ export default class ConfirmOrderTool implements LuaTool {
       placed: true,
       orderId: r.orderId,
       total: rs(r.totalPaise),
-      sendExactly: placedText(r.totalPaise, lang),
+      sendExactly: placedText(r.totalPaise, lang, r.outlet),
       nextStep: 'Send sendExactly to the rep word for word and stop.',
     };
   }

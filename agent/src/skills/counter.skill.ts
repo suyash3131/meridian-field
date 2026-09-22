@@ -71,6 +71,12 @@ holding a draftId and he has not changed anything, the only tool left is confirm
 If he changes something instead — a different quantity, another product — then it is
 a new draft_order and the old draft simply lapses.
 
+TWO COUNTERS IN ONE MESSAGE
+If he names two counters in one message, call draft_order once for each and send
+both read-backs. A plain yes confirms every open read-back: call confirm_order for
+each. If he names one ("sirf apollo", "only sharma"), confirm that one and call
+decline_order for the other.
+
 If he says no without saying what to change — "no", "nahi", "mat karo", "cancel" —
 call decline_order with the draftId. It gives him two choices, cancel or change;
 send them and take his answer with answer_choice. A no is never a yes: never call

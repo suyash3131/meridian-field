@@ -39,6 +39,7 @@ const HI: [RegExp, string][] = [
   [/^no products in that message$/, 'मैसेज में कोई प्रोडक्ट नहीं मिला।'],
   [/^that order is no longer open$/, 'यह ऑर्डर अब खुला नहीं है।'],
   [/^Not placed\.$/, 'ऑर्डर नहीं गया।'],
+  [/^Not placed: (.+)\.$/, 'ऑर्डर नहीं गया: $1।'],
   [/^Cancel order$/, 'ऑर्डर कैंसल करें'],
   [/^Change something$/, 'कुछ बदलना है'],
   [/^Cancelled\. Nothing sent\.$/, 'कैंसल हो गया। कुछ नहीं भेजा गया।'],
@@ -115,21 +116,26 @@ export function readBackText(s: any, lang: Lang): string {
   ].join('\n\n');
 }
 
-export const placedText = (paise: number, lang: Lang) =>
-  lang === 'hi' ? `हो गया — ${rsOf(paise)}। विज़िट दर्ज।` : `Done — ${rsOf(paise)}. Visit recorded.`;
+// Every result names the counter: one message can carry orders for two shops,
+// and "Done — ₹588" alone does not say which of them went through.
+const at = (outlet?: string) => (outlet ? `${outlet}, ` : '');
 
-export const heldText = (paise: number, lang: Lang) =>
+export const placedText = (paise: number, lang: Lang, outlet?: string) =>
+  lang === 'hi' ? `हो गया — ${at(outlet)}${rsOf(paise)}। विज़िट दर्ज।`
+                : `Done — ${at(outlet)}${rsOf(paise)}. Visit recorded.`;
+
+export const heldText = (paise: number, lang: Lang, outlet?: string) =>
   lang === 'hi'
-    ? `सेव हो गया — ${rsOf(paise)}। यह दुकान की क्रेडिट लिमिट से ज़्यादा है, इसलिए मंज़ूरी के लिए ASM के पास गया है। विज़िट दर्ज। आगे बढ़ें।`
-    : `Saved — ${rsOf(paise)}. It crosses this counter's credit limit, so it has gone to your ASM for approval. Visit recorded. Move on.`;
+    ? `सेव हो गया — ${at(outlet)}${rsOf(paise)}। यह दुकान की क्रेडिट लिमिट से ज़्यादा है, इसलिए मंज़ूरी के लिए ASM के पास गया है। विज़िट दर्ज। आगे बढ़ें।`
+    : `Saved — ${at(outlet)}${rsOf(paise)}. It crosses this counter's credit limit, so it has gone to your ASM for approval. Visit recorded. Move on.`;
 
 /** He said yes again, and the order had already gone through. */
-export const alreadyText = (paise: number, held: boolean, lang: Lang) =>
+export const alreadyText = (paise: number, held: boolean, lang: Lang, outlet?: string) =>
   lang === 'hi'
-    ? (held ? `पहले ही सेव हो चुका है ✓ ${rsOf(paise)}, ASM की मंज़ूरी का इंतज़ार है।`
-            : `पहले ही हो चुका है ✓ ${rsOf(paise)}। दोबारा नहीं भेजा।`)
-    : (held ? `Already saved ✓ ${rsOf(paise)}, waiting on your ASM.`
-            : `Already placed ✓ ${rsOf(paise)}. Not sent twice.`);
+    ? (held ? `पहले ही सेव हो चुका है ✓ ${at(outlet)}${rsOf(paise)}, ASM की मंज़ूरी का इंतज़ार है।`
+            : `पहले ही हो चुका है ✓ ${at(outlet)}${rsOf(paise)}। दोबारा नहीं भेजा।`)
+    : (held ? `Already saved ✓ ${at(outlet)}${rsOf(paise)}, waiting on your ASM.`
+            : `Already placed ✓ ${at(outlet)}${rsOf(paise)}. Not sent twice.`);
 
 /** A fix to a placed order, sent to the ASM rather than made. */
 export const changeSentText = (outlet: string, paise: number, lang: Lang) =>

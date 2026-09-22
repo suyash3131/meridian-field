@@ -328,13 +328,14 @@ export async function answerDraft(c: Choice): Promise<DraftResult> {
  * spend the one-question budget: the order was already fully understood.
  */
 export async function declineDraft(draftId: string): Promise<DraftResult> {
-  const open = await one<{ id: string }>(
-    `SELECT id FROM drafts WHERE id = $1 AND status = 'open'`, [draftId]);
+  const open = await one<{ id: string; outlet: string | null }>(
+    `SELECT d.id, ou.name AS outlet FROM drafts d LEFT JOIN outlets ou ON ou.id = d.outlet_id
+      WHERE d.id = $1 AND d.status = 'open'`, [draftId]);
   if (!open) return { kind: 'error', message: 'that order is no longer open' };
   await sql(`UPDATE drafts SET state = state || '{"declined":true}'::jsonb, updated_at=now()
               WHERE id=$1`, [draftId]);
   return {
-    kind: 'question', draftId, question: 'Not placed.',
+    kind: 'question', draftId, question: open.outlet ? `Not placed: ${open.outlet}.` : 'Not placed.',
     options: [{ key: 'cancel', label: 'Cancel order' }, { key: 'change', label: 'Change something' }],
   };
 }
@@ -571,6 +572,8 @@ export type CommitResult = {
   approvalId?: string;
   /** He said yes again to an order that already went through. */
   already?: boolean;
+  /** Named in every reply, so two orders in one message can be told apart. */
+  outlet?: string;
 };
 
 /**
@@ -590,16 +593,18 @@ async function alreadyDone(draftId: string): Promise<CommitResult | { error: str
 
   // Drafts committed before the order id was kept on them are found by
   // fingerprint: same rep, same counter, same lines.
-  const o = await one<{ id: string; status: 'confirmed' | 'held_credit'; total_paise: string; visit_id: string }>(
+  const o = await one<{ id: string; status: 'confirmed' | 'held_credit'; total_paise: string; visit_id: string; outlet: string }>(
     d.state.orderId
-      ? `SELECT id, status, total_paise, visit_id FROM orders WHERE id = $1`
-      : `SELECT id, status, total_paise, visit_id FROM orders
-          WHERE fingerprint = $1 AND rep_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      ? `SELECT o.id, o.status, o.total_paise, o.visit_id, ou.name AS outlet
+           FROM orders o JOIN outlets ou ON ou.id = o.outlet_id WHERE o.id = $1`
+      : `SELECT o.id, o.status, o.total_paise, o.visit_id, ou.name AS outlet
+           FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
+          WHERE o.fingerprint = $1 AND o.rep_id = $2 ORDER BY o.created_at DESC LIMIT 1`,
     d.state.orderId ? [d.state.orderId] : [d.state.fingerprint ?? '', d.rep_id]);
   if (!o) return { error: 'that order is no longer open' };
   return {
     status: o.status, orderId: o.id, visitId: o.visit_id, totalPaise: Number(o.total_paise),
-    message: 'Already placed.', already: true,
+    message: 'Already placed.', already: true, outlet: o.outlet,
   };
 }
 
@@ -705,7 +710,7 @@ export async function confirmOrder(draftId: string): Promise<CommitResult | { er
         ms: Date.now() - new Date(draft.created_at).getTime(),
       });
       return {
-        status: 'held_credit' as const, orderId, visitId, totalPaise: total, approvalId,
+        status: 'held_credit' as const, orderId, visitId, totalPaise: total, approvalId, outlet: outletName,
         message: `Saved and sent for approval — this takes ${outletName} past its credit limit. Visit recorded.`,
       };
     }
@@ -724,7 +729,7 @@ export async function confirmOrder(draftId: string): Promise<CommitResult | { er
     });
 
     return {
-      status: 'confirmed' as const, orderId, visitId, totalPaise: total,
+      status: 'confirmed' as const, orderId, visitId, totalPaise: total, outlet: outletName,
       message: 'Order placed. Visit recorded.',
     };
   });
