@@ -163,7 +163,9 @@ export type DraftResult =
 
 export type OrderSummary = {
   outlet: { id: string; name: string; area: string };
-  lines: { name: string; pack: string; qty: number; freeQty: number; unit: number; total: number }[];
+  lines: { name: string; pack: string; qty: number; freeQty: number; unit: number; total: number;
+           /** Set when the quantity is far above what is normally ordered. */
+           unusual?: { usual: number; basis: 'this_shop' | 'all_shops' } }[];
   subtotalPaise: number; schemeDiscountPaise: number; totalPaise: number;
   creditDays: number;
   credit: { limitPaise: number; outstandingPaise: number; afterPaise: number; overLimit: boolean };
@@ -375,6 +377,35 @@ async function askOnce(
 
 // -----------------------------------------------------------------------------
 
+/**
+ * What a counter normally orders of each product: its own median over past
+ * orders, or every counter's median when it has too little history.
+ *
+ * A typo like "500" for "50" is the one mistake the read-back does not catch
+ * well, because the slip looks right apart from one number. Nothing is
+ * blocked: a big order can be real. The slip just points at the number.
+ */
+async function usualQuantities(outletId: string, skuIds: string[]) {
+  const rows = await sql<{ sku_id: string; here: number | null; n_here: number; everywhere: number | null }>(
+    `SELECT ol.sku_id,
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY ol.qty) FILTER (WHERE o.outlet_id = $1) AS here,
+            count(*) FILTER (WHERE o.outlet_id = $1)::int AS n_here,
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY ol.qty) AS everywhere
+       FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+      WHERE o.status IN ('confirmed','held_credit') AND ol.sku_id = ANY($2)
+      GROUP BY ol.sku_id`, [outletId, skuIds]);
+  return new Map(rows.map((r) => [r.sku_id,
+    r.n_here >= 2 && r.here != null
+      ? { usual: Math.round(r.here), basis: 'this_shop' as const }
+      : { usual: Math.round(r.everywhere ?? 0), basis: 'all_shops' as const }]));
+}
+
+/** Five times the usual and at least ten more: "10 instead of 2" is not worth a flag. */
+function unusualQty(qty: number, u?: { usual: number; basis: 'this_shop' | 'all_shops' }) {
+  if (!u || u.usual <= 0) return undefined;
+  return qty >= u.usual * 5 && qty - u.usual >= 10 ? u : undefined;
+}
+
 async function buildDraft(
   p: Proposal, outlet: OutletMatch, resolvedBy: string[], startedAt: number,
   skipDuplicateCheck = false, existingDraftId?: string,
@@ -454,11 +485,13 @@ async function buildDraft(
     : distanceM <= AT_THE_COUNTER_M ? 'verified'
     : 'flagged';
 
+  const usual = await usualQuantities(outlet.id, lines.map((l) => l.sku.id));
   const summary: OrderSummary = {
     outlet: { id: outlet.id, name: outlet.name, area: outlet.area },
     lines: lines.map((l) => ({
       name: l.sku.name, pack: l.sku.pack_desc, qty: l.qty, freeQty: l.freeQty,
       unit: l.unitPaise, total: l.totalPaise,
+      unusual: unusualQty(l.qty, usual.get(l.sku.id)),
     })),
     subtotalPaise, schemeDiscountPaise, totalPaise, creditDays,
     credit: { limitPaise: limit, outstandingPaise: owed, afterPaise, overLimit: afterPaise > limit },

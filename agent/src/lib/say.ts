@@ -84,6 +84,15 @@ export function readBackText(s: any, lang: Lang): string {
   const items = s.lines.map((l: any) =>
     `${l.qty} × ${l.name}${packNote(l.name, l.pack)}` + (l.freeQty ? ` + ${l.freeQty} ${free}` : ''));
 
+  // One line per number that is far above normal, straight under the items,
+  // so the rep checks the figure before he reads the total.
+  const checks = s.lines.filter((l: any) => l.unusual).map((l: any) => {
+    const shop = l.unusual.basis === 'this_shop';
+    return hi
+      ? `⚠ ध्यान दें: ${l.qty} ${l.name}। ${shop ? 'यह दुकान' : 'दुकानें'} आमतौर पर ${l.unusual.usual} ${shop ? 'लेती है' : 'लेती हैं'}।`
+      : `⚠ Check: ${l.qty} ${l.name}. ${shop ? 'This shop usually takes' : 'Shops usually take'} ${l.unusual.usual}.`;
+  });
+
   const credit = s.creditDays
     ? (hi ? `क्रेडिट: ${s.creditDays} दिन` : `Credit: ${s.creditDays} days`)
     : null;
@@ -97,6 +106,7 @@ export function readBackText(s: any, lang: Lang): string {
   return [
     `**${s.outlet.name}**`,
     items.map((i: string) => `- ${i}`).join('\n'),
+    ...checks,
     ...(credit ? [credit] : []),
     ...(warn ? [warn] : []),
     price,
