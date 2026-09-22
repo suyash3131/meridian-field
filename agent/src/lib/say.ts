@@ -38,12 +38,18 @@ const HI: [RegExp, string][] = [
   [/^no counter matches "(.+)"$/, '"$1" नाम की कोई दुकान नहीं मिली।'],
   [/^no products in that message$/, 'मैसेज में कोई प्रोडक्ट नहीं मिला।'],
   [/^that order is no longer open$/, 'यह ऑर्डर अब खुला नहीं है।'],
+  [/^Not placed\.$/, 'ऑर्डर नहीं गया।'],
+  [/^Cancel order$/, 'ऑर्डर कैंसल करें'],
+  [/^Change something$/, 'कुछ बदलना है'],
+  [/^Cancelled\. Nothing sent\.$/, 'कैंसल हो गया। कुछ नहीं भेजा गया।'],
+  [/^What to change\? Send just that, like "2 calci d3"\.$/, 'क्या बदलना है? बस वही भेजें, जैसे "2 calci d3"।'],
 ];
 
 export function tr(text: string, lang: Lang): string {
   if (lang === 'en' || !text) return text;
   // "(19m away)" on a counter option.
-  const t = text.replace(/\((\d+)m away\)/g, '($1 मी. दूर)');
+  const t = text.replace(/\((\d+)m away\)/g, '($1 मी. दूर)')
+                .replace(/\(([\d.]+) km away\)/g, '($1 कि.मी. दूर)');
   for (const [re, hi] of HI) if (re.test(t)) return t.replace(re, hi);
   return t;
 }

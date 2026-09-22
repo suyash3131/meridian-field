@@ -157,6 +157,8 @@ export type DraftResult =
   | { kind: 'parked'; draftId: string; message: string }
   | { kind: 'draft'; draftId: string; summary: OrderSummary }
   | { kind: 'duplicate'; draftId: string; question: string; options: { key: string; label: string }[] }
+  | { kind: 'cancelled'; draftId: string; message: string }
+  | { kind: 'change'; draftId: string; message: string }
   | { kind: 'error'; message: string };
 
 export type OrderSummary = {
@@ -197,12 +199,18 @@ export async function draftOrder(proposal: Proposal): Promise<DraftResult> {
       outletDecision.unknown ? `No counter called "${p.shopPhrase}" on file. Which one is it?` : 'Which counter?',
       outletDecision.candidates.map((c) => ({
         key: c.id,
-        label: `${c.name}, ${c.area}` + (c.distance_m !== null ? ` (${c.distance_m}m away)` : ''),
+        label: `${c.name}, ${c.area}` + awayLabel(c.distance_m),
       })));
   }
 
   const outlet = outletDecision.value;
   return await buildDraft(p, outlet, [outletDecision.method], startedAt);
+}
+
+/** " (240m away)", " (12.2 km away)", or nothing for a shop in another city. */
+function awayLabel(m: number | null): string {
+  if (m === null || m > 50_000) return '';
+  return m < 1000 ? ` (${m}m away)` : ` (${(m / 1000).toFixed(1)} km away)`;
 }
 
 /** Continue a draft after the rep answered the one question. */
@@ -217,7 +225,7 @@ export async function answerDraft(c: Choice): Promise<DraftResult> {
   const state = draft.state as {
     pendingOutlet?: string; pendingSku?: string;
     items?: { phrase: string; qty: number }[]; creditDays?: number;
-    resolvedSkus?: Record<string, string>; duplicateOf?: string;
+    resolvedSkus?: Record<string, string>; duplicateOf?: string; declined?: boolean;
   };
 
   const p: Proposal = {
@@ -231,6 +239,22 @@ export async function answerDraft(c: Choice): Promise<DraftResult> {
     threadId: draft.thread_id ?? undefined,
     rawMessage: draft.raw_message,
   };
+
+  // The rep said no to the read-back, then chose what that no meant.
+  if (state.declined) {
+    await sql(`UPDATE drafts SET state = state || '{"declined":false}'::jsonb, updated_at=now()
+                WHERE id=$1`, [c.draftId]);
+    if (c.pick === 'cancel') {
+      // Counted with the other drafts that never became an order, so a rep
+      // cancelling often is visible on Agent health rather than silent.
+      await sql(`UPDATE drafts SET status='abandoned', updated_at=now() WHERE id=$1`, [c.draftId]);
+      await logEvent({ repId: draft.rep_id, threadId: draft.thread_id ?? undefined,
+                       event: 'abandoned', meta: { reason: 'rep_cancelled' } });
+      return { kind: 'cancelled', draftId: c.draftId, message: 'Cancelled. Nothing sent.' };
+    }
+    // The draft stays open: his next message is the change, redrafted in full.
+    return { kind: 'change', draftId: c.draftId, message: 'What to change? Send just that, like "2 calci d3".' };
+  }
 
   // The rep confirmed a double-send was in fact a second, real order.
   if (state.duplicateOf) {
@@ -261,6 +285,24 @@ export async function answerDraft(c: Choice): Promise<DraftResult> {
   }
 
   return { kind: 'error', message: 'nothing was waiting on an answer' };
+}
+
+/**
+ * The rep said no to the read-back without saying why. "No" can mean drop it
+ * or fix it, and guessing either wrong costs him an order or a phone call, so
+ * he gets both as a choice. This is not a resolution question and does not
+ * spend the one-question budget: the order was already fully understood.
+ */
+export async function declineDraft(draftId: string): Promise<DraftResult> {
+  const open = await one<{ id: string }>(
+    `SELECT id FROM drafts WHERE id = $1 AND status = 'open'`, [draftId]);
+  if (!open) return { kind: 'error', message: 'that order is no longer open' };
+  await sql(`UPDATE drafts SET state = state || '{"declined":true}'::jsonb, updated_at=now()
+              WHERE id=$1`, [draftId]);
+  return {
+    kind: 'question', draftId, question: 'Not placed.',
+    options: [{ key: 'cancel', label: 'Cancel order' }, { key: 'change', label: 'Change something' }],
+  };
 }
 
 async function outletById(id: string) {

@@ -26,6 +26,17 @@ export default class AnswerChoiceTool implements LuaTool {
     if (result.kind === 'question' || result.kind === 'duplicate')
       return askText(result.draftId, result.question, result.options, lang);
     if (result.kind === 'parked') return { parked: true, sendExactly: tr(result.message, lang) };
+    if (result.kind === 'cancelled')
+      return { cancelled: true, sendExactly: tr(result.message, lang),
+               nextStep: 'Send sendExactly word for word and stop. This order is closed.' };
+    if (result.kind === 'change')
+      return {
+        sendExactly: tr(result.message, lang), replyIn: replyIn(lang),
+        nextStep:
+          'Send sendExactly word for word and stop. His next message is the change. Call ' +
+          'draft_order for the same counter with the whole order as it now stands: the lines ' +
+          'you read back, with his change applied. Put his new message in message.',
+      };
     return { error: tr(result.message ?? 'that answer did not fit the question', lang), replyIn: replyIn(lang) };
   }
 }

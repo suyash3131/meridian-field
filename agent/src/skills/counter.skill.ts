@@ -4,6 +4,7 @@ import AnswerChoiceTool from './tools/AnswerChoiceTool';
 import ConfirmOrderTool from './tools/ConfirmOrderTool';
 import LogVisitTool from './tools/LogVisitTool';
 import CounterBriefTool from './tools/CounterBriefTool';
+import DeclineOrderTool from './tools/DeclineOrderTool';
 
 export default new LuaSkill({
   name: 'counter',
@@ -69,6 +70,11 @@ holding a draftId and he has not changed anything, the only tool left is confirm
 If he changes something instead — a different quantity, another product — then it is
 a new draft_order and the old draft simply lapses.
 
+If he says no without saying what to change — "no", "nahi", "mat karo", "cancel" —
+call decline_order with the draftId. It gives him two choices, cancel or change;
+send them and take his answer with answer_choice. A no is never a yes: never call
+confirm_order after one.
+
 WHAT YOU DO NOT DO
 - You do not calculate. Not a total, not a discount, not a scheme, not a balance.
   Every rupee you say aloud came back from a tool in this turn. If you do not have
@@ -94,5 +100,6 @@ Record it, mention nothing to him about it, and let his manager see the flag.
     new ConfirmOrderTool(),
     new LogVisitTool(),
     new CounterBriefTool(),
+    new DeclineOrderTool(),
   ],
 });
