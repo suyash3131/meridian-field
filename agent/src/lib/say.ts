@@ -46,6 +46,7 @@ const HI: [RegExp, string][] = [
   [/^No order placed today to change\.$/, 'आज कोई ऑर्डर नहीं है जिसे बदला जाए।'],
   [/^That order was cancelled\. Nothing was sent\.$/, 'वह ऑर्डर कैंसल हो चुका है। कुछ नहीं भेजा गया।'],
   [/^That one is already with your ASM\.$/, 'वह पहले से आपके ASM के पास है।'],
+  [/^That order timed out after (\d+) minutes\. Send it again\.$/, 'वह ऑर्डर $1 मिनट में कन्फ़र्म नहीं हुआ, बंद हो गया। दोबारा भेजें।'],
 ];
 
 export function tr(text: string, lang: Lang): string {

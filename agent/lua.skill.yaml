@@ -4,17 +4,17 @@ agent:
 skills:
   - name: counter
     skillId: 2288a636-aec7-4a43-8630-5a318c8a04a3
-    version: 1.0.15
+    version: 1.0.17
   - name: territory
     skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
-    version: 1.0.14
+    version: 1.0.16
 webhooks: []
 jobs: []
 preprocessors: []
 postprocessors: []
 mcpServers: []
 backup:
-  activeVersion: 16
-  lastHash: 8250c4a199a75c44cdac9ed24092be202213c34e3f57de9f9c642c03307edcdd
-  lastPushedAt: '2026-09-22T09:03:43.760Z'
+  activeVersion: 17
+  lastHash: ebba6c11c69cd47fae804fd43a031cbd3d29baab4476383183a89f74ca12841d
+  lastPushedAt: '2026-09-22T09:08:12.143Z'
 workflows: []

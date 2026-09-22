@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { one, sql } from '@/lib/db';
+import { DRAFT_TIMEOUT_MIN } from '@/lib/order';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,10 @@ export async function GET() {
          FROM order_lines`),
     one<{ n: number; started: number }>(
       `SELECT
-         (SELECT count(*)::int FROM agent_events WHERE event = 'abandoned') AS n,
+         (SELECT count(*)::int FROM agent_events WHERE event = 'abandoned')
+         -- plus drafts past the timeout that no later message has swept yet
+         + (SELECT count(*)::int FROM drafts WHERE status = 'open'
+             AND updated_at < now() - interval '${DRAFT_TIMEOUT_MIN} minutes') AS n,
          (SELECT count(DISTINCT thread_id)::int FROM agent_events WHERE event = 'message_in') AS started`),
     sql<{ phrase: string; times: number; asked: number }>(
       `SELECT matched_from AS phrase, count(*)::int AS times,

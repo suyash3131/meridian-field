@@ -173,8 +173,39 @@ export type OrderSummary = {
   resolvedBy: string[];
 };
 
+// -----------------------------------------------------------------------------
+// Drafts nobody answered.
+//
+// A rep who is interrupted at the counter walks away from a read-back, and the
+// order is lost without anyone knowing. After half an hour a draft is closed
+// and counted as abandoned, so Agent health shows it. There is no timer: a
+// rep's stale drafts are swept when he next starts an order, and the health
+// page counts the ones not swept yet. A yes that arrives later is refused,
+// because prices, stock and credit may have moved since he read the slip.
+// -----------------------------------------------------------------------------
+
+export const DRAFT_TIMEOUT_MIN = 30;
+const TIMED_OUT = `That order timed out after ${DRAFT_TIMEOUT_MIN} minutes. Send it again.`;
+
+async function sweepStale(repId: string) {
+  const gone = await sql<{ id: string; thread_id: string | null }>(
+    `UPDATE drafts SET status='abandoned', state = state || '{"expired":true}'::jsonb, updated_at=now()
+      WHERE rep_id=$1 AND status='open' AND updated_at < now() - interval '${DRAFT_TIMEOUT_MIN} minutes'
+      RETURNING id, thread_id`, [repId]);
+  for (const d of gone)
+    await logEvent({ repId, threadId: d.thread_id ?? undefined, event: 'abandoned', meta: { reason: 'no_reply' } });
+}
+
+/** True, and the draft closed, if nobody has touched it for too long. */
+async function expiredNow(d: { id: string; rep_id: string; thread_id: string | null; updated_at: string }) {
+  if (Date.now() - new Date(d.updated_at).getTime() < DRAFT_TIMEOUT_MIN * 60_000) return false;
+  await sweepStale(d.rep_id);
+  return true;
+}
+
 export async function draftOrder(proposal: Proposal): Promise<DraftResult> {
   const startedAt = Date.now();
+  await sweepStale(proposal.repId);
   // Evidence is fetched, never accepted. Anything the caller passed as `gps`
   // is ignored in favour of what the rep's own device last published.
   const fix = await lastPosition(proposal.repId);
@@ -220,9 +251,10 @@ export async function answerDraft(c: Choice): Promise<DraftResult> {
   const draft = await one<{
     id: string; rep_id: string; outlet_id: string | null; raw_message: string;
     state: Record<string, unknown>; questions_asked: number; thread_id: string | null;
-    gps_lat: number | null; gps_lng: number | null; photo_url: string | null;
+    gps_lat: number | null; gps_lng: number | null; photo_url: string | null; updated_at: string;
   }>(`SELECT * FROM drafts WHERE id = $1 AND status = 'open'`, [c.draftId]);
   if (!draft) return { kind: 'error', message: 'that order is no longer open' };
+  if (await expiredNow(draft)) return { kind: 'error', message: TIMED_OUT };
 
   const state = draft.state as {
     pendingOutlet?: string; pendingSku?: string;
@@ -548,9 +580,10 @@ export type CommitResult = {
  * happened to it.
  */
 async function alreadyDone(draftId: string): Promise<CommitResult | { error: string }> {
-  const d = await one<{ status: string; rep_id: string; state: { orderId?: string; fingerprint?: string } }>(
+  const d = await one<{ status: string; rep_id: string; state: { orderId?: string; fingerprint?: string; expired?: boolean } }>(
     `SELECT status, rep_id, state FROM drafts WHERE id = $1`, [draftId]);
   if (!d) return { error: 'that order is no longer open' };
+  if (d.status === 'abandoned' && d.state.expired) return { error: TIMED_OUT };
   if (d.status === 'abandoned') return { error: 'That order was cancelled. Nothing was sent.' };
   if (d.status === 'parked') return { error: 'That one is already with your ASM.' };
   if (d.status !== 'committed') return { error: 'that order is no longer open' };
@@ -575,9 +608,10 @@ export async function confirmOrder(draftId: string): Promise<CommitResult | { er
     id: string; rep_id: string; outlet_id: string; raw_message: string;
     thread_id: string | null; state: Record<string, unknown>;
     gps_lat: number | null; gps_lng: number | null; photo_url: string | null;
-    created_at: string;
+    created_at: string; updated_at: string;
   }>(`SELECT * FROM drafts WHERE id = $1 AND status = 'open'`, [draftId]);
   if (!draft) return await alreadyDone(draftId);
+  if (await expiredNow(draft)) return { error: TIMED_OUT };
 
   const s = draft.state as {
     lines?: { skuId: string; qty: number; unitPaise: number; totalPaise: number;
