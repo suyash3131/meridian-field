@@ -60,24 +60,39 @@ function packNote(name: string, pack: string): string {
   return name.toLowerCase().includes(size) ? '' : ` (${pack})`;
 }
 
+/**
+ * Shop, then one product per line, then credit, then price, then the question.
+ * Laid out as a slip rather than a sentence: the rep reads it top to bottom at
+ * a glance, and each thing he might need to correct sits on a line of its own.
+ *
+ * The chat widget renders markdown, where a single line break is only a space,
+ * so the first version arrived as one run-on paragraph. Items are a list and
+ * every other part is its own paragraph: the only breaks the widget keeps.
+ */
 export function readBackText(s: any, lang: Lang): string {
-  const free = lang === 'hi' ? 'मुफ़्त' : 'free';
-  const lines = s.lines.map((l: any) =>
-    `${l.qty} × ${l.name}${packNote(l.name, l.pack)}` + (l.freeQty ? ` + ${l.freeQty} ${free}` : '')).join(', ');
-  const total = rsOf(s.totalPaise);
+  const hi = lang === 'hi';
+  const free = hi ? 'मुफ़्त' : 'free';
+  const items = s.lines.map((l: any) =>
+    `${l.qty} × ${l.name}${packNote(l.name, l.pack)}` + (l.freeQty ? ` + ${l.freeQty} ${free}` : ''));
 
-  if (lang === 'hi') {
-    const terms = s.creditDays ? `, ${s.creditDays} दिन` : '';
-    const warn = s.credit.overLimit
-      ? `\n⚠ इससे ${s.outlet.name} का बकाया ${rsOf(s.credit.afterPaise)} हो जाएगा, लिमिट ${rsOf(s.credit.limitPaise)} है। यह ASM के पास जाएगा।`
-      : '';
-    return `${s.outlet.name} — ${lines} = ${total}${terms}।${warn}\nकन्फ़र्म करें?`;
-  }
-  const terms = s.creditDays ? `, ${s.creditDays} days` : '';
+  const credit = s.creditDays
+    ? (hi ? `क्रेडिट: ${s.creditDays} दिन` : `Credit: ${s.creditDays} days`)
+    : null;
   const warn = s.credit.overLimit
-    ? `\n⚠ Takes ${s.outlet.name} to ${rsOf(s.credit.afterPaise)} against a ${rsOf(s.credit.limitPaise)} limit. It will go to your ASM.`
-    : '';
-  return `${s.outlet.name} — ${lines} = ${total}${terms}.${warn}\nConfirm?`;
+    ? (hi
+        ? `⚠ लिमिट से ऊपर: ${rsOf(s.credit.afterPaise)} / ${rsOf(s.credit.limitPaise)}। ASM के पास जाएगा।`
+        : `⚠ Over limit: ${rsOf(s.credit.afterPaise)} of ${rsOf(s.credit.limitPaise)}. Goes to your ASM.`)
+    : null;
+  const price = hi ? `कीमत: ${rsOf(s.totalPaise)}` : `Price: ${rsOf(s.totalPaise)}`;
+
+  return [
+    `**${s.outlet.name}**`,
+    items.map((i: string) => `- ${i}`).join('\n'),
+    ...(credit ? [credit] : []),
+    ...(warn ? [warn] : []),
+    price,
+    hi ? 'कन्फ़र्म करें?' : 'Confirm?',
+  ].join('\n\n');
 }
 
 export const placedText = (paise: number, lang: Lang) =>
