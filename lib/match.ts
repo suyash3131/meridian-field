@@ -35,7 +35,7 @@ const NOWHERE_NEAR_M = 800;
 /** Words half the counters in India share. They are stripped before deciding
  *  whether a name really matches, because "city chemist" and "krishna chemist"
  *  score 0.40 on "chemist" alone, the same as a genuine typo. */
-const GENERIC = /\b(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?|house|shop|and|co|the)\b/g;
+export const GENERIC = /\b(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?|house|shop|and|co|the)\b/g;
 const GENERIC_SQL =
   '\\m(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?|house|shop|and|co|the)\\M';
 

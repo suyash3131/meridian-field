@@ -36,11 +36,17 @@ const shortReason = (r: string) => {
   return m ? `over its ${m[1]} limit` : r;
 };
 
-/** "5 held orders and 1 change request are waiting on you." */
+/** What a rep asked the ASM for, by approval kind. */
+const REQUEST: Record<string, string> = {
+  order_change: 'Change to a placed order',
+  price_exception: 'Asking for a better price',
+};
+
+/** "5 held orders and 1 rep request are waiting on you." */
 function waitingTitle(holds: number, changes: number) {
   const parts = [
     holds ? `${holds} held order${holds > 1 ? 's' : ''}` : '',
-    changes ? `${changes} change request${changes > 1 ? 's' : ''}` : '',
+    changes ? `${changes} rep request${changes > 1 ? 's' : ''}` : '',
   ].filter(Boolean);
   return `${parts.join(' and ')} ${holds + changes > 1 ? 'are' : 'is'} waiting on you.`;
 }
@@ -67,10 +73,10 @@ export default function Today() {
 
   const hour = Number(ist({ hour: 'numeric', hour12: false }));
   const greeting = hour < 12 ? 'Good morning, Anita' : hour < 17 ? 'Good afternoon, Anita' : 'Good evening, Anita';
-  // A change request is a decision too, but it is not money held: it gets its
-  // own line and stays out of the "Held for you" figure.
-  const holds = d ? d.approvals.filter((a) => a.kind !== 'order_change') : [];
-  const changes = d ? d.approvals.filter((a) => a.kind === 'order_change') : [];
+  // A rep's request (fix a placed order, a better price) is a decision too, but
+  // it is not money held: it gets its own line and stays out of "Held for you".
+  const holds = d ? d.approvals.filter((a) => !(a.kind in REQUEST)) : [];
+  const changes = d ? d.approvals.filter((a) => a.kind in REQUEST) : [];
   const decisions = groupByOutlet(holds);
   const held = decisions.reduce((s, g) => s + g.value, 0);
   const overdue = week?.findings.find((f) => f.code === 'collections')?.detail;
@@ -166,7 +172,7 @@ export default function Today() {
                         <div className="flex-1 min-w-0">
                           <p className="text-[0.875rem] font-medium">{c.outlet}</p>
                           <p className="mt-0.5 text-[0.8125rem] text-ink-2">
-                            Change to a placed order · {c.rep}
+                            {REQUEST[c.kind]} · {c.rep}
                           </p>
                           <p className="mt-1 text-[0.8125rem] text-ink">{c.reason.replace(/^Rep asks: /, '')}</p>
                         </div>
@@ -179,7 +185,7 @@ export default function Today() {
                       </li>
                     ))}
                     <li className="px-5 py-3 bg-sunk text-[0.75rem] text-ink-3">
-                      The agent can’t release a hold or change a placed order. That decision stays with a person.
+                      The agent can’t release a hold, change a placed order or give a discount. That decision stays with a person.
                     </li>
                   </ul>
                 )}

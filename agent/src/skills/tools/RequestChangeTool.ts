@@ -16,6 +16,7 @@ export default class RequestChangeTool implements LuaTool {
 
   inputSchema = z.object({
     change: z.string().describe('What he wants changed, in his own words, copied exactly.'),
+    shop: z.string().optional().describe('The counter he named, if he named one ("apollo", "sharma medical").'),
     orderId: z.string().optional().describe('The orderId from confirm_order, if you have it.'),
   });
 

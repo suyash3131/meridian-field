@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (!b.repId || !b.change)
       return NextResponse.json({ kind: 'error', message: 'repId and change are required' }, { status: 400 });
     return NextResponse.json(await requestOrderChange({
-      repId: String(b.repId), change: String(b.change), orderId: b.orderId ? String(b.orderId) : undefined,
+      repId: String(b.repId), change: String(b.change), orderId: b.orderId ? String(b.orderId) : undefined, shop: b.shop ? String(b.shop) : undefined,
     }));
   } catch (e) {
     return NextResponse.json(

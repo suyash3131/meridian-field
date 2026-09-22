@@ -28,7 +28,11 @@ export async function GET() {
          FROM reps r ORDER BY r.region, r.id`),
     sql<{ id: string; kind: string; outlet: string; rep: string; reason: string; order_id: string; value: string; age_days: number }>(
       `SELECT a.id, a.kind, ou.name AS outlet, r.name AS rep, a.reason, a.subject_id AS order_id,
-              COALESCE(o.total_paise, 0)::bigint AS value,
+              -- a price ask can come before the order is placed: value its open slip
+              COALESCE(o.total_paise,
+                (SELECT SUM((l->>'totalPaise')::bigint) FROM drafts d,
+                        jsonb_array_elements(COALESCE(d.state->'lines','[]'::jsonb)) l
+                  WHERE d.id = a.subject_id), 0)::bigint AS value,
               (current_date - a.created_at::date) AS age_days
          FROM approvals a
          JOIN outlets ou ON ou.id = a.outlet_id

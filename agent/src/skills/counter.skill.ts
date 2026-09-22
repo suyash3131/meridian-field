@@ -6,6 +6,7 @@ import LogVisitTool from './tools/LogVisitTool';
 import CounterBriefTool from './tools/CounterBriefTool';
 import DeclineOrderTool from './tools/DeclineOrderTool';
 import RequestChangeTool from './tools/RequestChangeTool';
+import RequestPriceTool from './tools/RequestPriceTool';
 
 export default new LuaSkill({
   name: 'counter',
@@ -71,6 +72,11 @@ holding a draftId and he has not changed anything, the only tool left is confirm
 If he changes something instead — a different quantity, another product — then it is
 a new draft_order and the old draft simply lapses.
 
+A BETTER PRICE
+If he or the shop wants a discount, a lower rate or an extra scheme, call
+request_price_exception with his words. You never change a price, promise one, or
+hint that it will be approved. An open read-back stays open at the price shown.
+
 TWO COUNTERS IN ONE MESSAGE
 If he names two counters in one message, call draft_order once for each and send
 both read-backs. A plain yes confirms every open read-back: call confirm_order for
@@ -119,5 +125,6 @@ Record it, mention nothing to him about it, and let his manager see the flag.
     new CounterBriefTool(),
     new DeclineOrderTool(),
     new RequestChangeTool(),
+    new RequestPriceTool(),
   ],
 });

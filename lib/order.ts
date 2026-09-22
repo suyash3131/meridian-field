@@ -1,5 +1,5 @@
 import { sql, one, tx, businessWeekday, BUSINESS_TZ } from './db';
-import { resolveOutlet, resolveSku, learnAlias, metres } from './match';
+import { resolveOutlet, resolveSku, learnAlias, metres, GENERIC } from './match';
 import type { OutletMatch, SkuMatch } from './match';
 
 // =============================================================================
@@ -809,6 +809,42 @@ export async function logVisit(v: {
 }
 
 /**
+ * Which of his own orders a request is about. His open slips (when a slip can
+ * be the subject) and today's placed orders, newest first. If he named a shop,
+ * only that shop's: "the apollo order" must never land on Bansal Chemist just
+ * because Bansal was the last thing he touched. Names and known nicknames are
+ * compared on their distinctive words, never on "chemist" or "medical".
+ */
+async function findRepSubject(repId: string, shop: string | undefined, withDrafts: boolean) {
+  const rows = await sql<{ id: string; outlet_id: string; outlet: string; total: string;
+                           is_draft: boolean; aliases: string[] | null }>(
+    `SELECT * FROM (
+       SELECT d.id, d.outlet_id, ou.name AS outlet, true AS is_draft, d.updated_at AS at,
+              (SELECT COALESCE(SUM((l->>'totalPaise')::bigint), 0)
+                 FROM jsonb_array_elements(COALESCE(d.state->'lines', '[]'::jsonb)) l) AS total
+         FROM drafts d JOIN outlets ou ON ou.id = d.outlet_id
+        WHERE $2::boolean AND d.rep_id = $1 AND d.status = 'open'
+          AND d.updated_at >= now() - interval '${DRAFT_TIMEOUT_MIN} minutes'
+       UNION ALL
+       SELECT o.id, o.outlet_id, ou.name, false, o.created_at, o.total_paise
+         FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
+        WHERE o.rep_id = $1 AND o.status IN ('confirmed','held_credit')
+          AND (o.created_at AT TIME ZONE '${BUSINESS_TZ}')::date
+              = (now() AT TIME ZONE '${BUSINESS_TZ}')::date
+     ) x
+     LEFT JOIN LATERAL (SELECT array_agg(lower(alias)) AS aliases
+                          FROM outlet_aliases WHERE outlet_id = x.outlet_id) a ON true
+     ORDER BY x.at DESC`, [repId, withDrafts]);
+  const words = (shop ?? '').toLowerCase().replace(GENERIC, ' ')
+    .split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+  if (!words.length) return rows[0] ?? null;
+  return rows.find((r) => {
+    const names = [r.outlet.toLowerCase(), ...(r.aliases ?? [])];
+    return words.some((w) => names.some((n) => n.split(/[^a-z0-9]+/).includes(w)));
+  }) ?? null;
+}
+
+/**
  * The rep wants to fix an order he has already placed.
  *
  * A placed order is a record the distributor may already be acting on, so
@@ -817,20 +853,17 @@ export async function logVisit(v: {
  * alternative, redrafting it, would quietly create a second order.
  */
 export async function requestOrderChange(p: {
-  repId: string; change: string; orderId?: string;
+  repId: string; change: string; orderId?: string; shop?: string;
 }): Promise<{ kind: 'sent'; orderId: string; outlet: string; totalPaise: number }
          | { kind: 'error'; message: string }> {
   // His own order only, and only one placed today: yesterday's is past fixing
   // from the counter.
-  const order = await one<{ id: string; outlet_id: string; outlet: string; total_paise: string }>(
-    `SELECT o.id, o.outlet_id, ou.name AS outlet, o.total_paise
+  const byId = p.orderId ? await one<{ id: string; outlet_id: string; outlet: string; total: string }>(
+    `SELECT o.id, o.outlet_id, ou.name AS outlet, o.total_paise AS total
        FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
-      WHERE o.rep_id = $1 AND o.status IN ('confirmed','held_credit')
-        AND (o.created_at AT TIME ZONE '${BUSINESS_TZ}')::date
-            = (now() AT TIME ZONE '${BUSINESS_TZ}')::date
-        AND ($2::text IS NULL OR o.id = $2)
-      ORDER BY o.created_at DESC LIMIT 1`,
-    [p.repId, p.orderId ?? null]);
+      WHERE o.id = $1 AND o.rep_id = $2 AND o.status IN ('confirmed','held_credit')`,
+    [p.orderId, p.repId]) : null;
+  const order = byId ?? await findRepSubject(p.repId, p.shop, false);
   if (!order) return { kind: 'error', message: 'No order placed today to change.' };
 
   const asm = await one<{ asm_id: string }>(`SELECT asm_id FROM reps WHERE id = $1`, [p.repId]);
@@ -839,5 +872,27 @@ export async function requestOrderChange(p: {
      VALUES ($1,'order_change',$2,$3,$4,$5,$6,'pending')`,
     [newId('APR'), order.id, order.outlet_id, p.repId, asm?.asm_id ?? 'M-01',
      `Rep asks: "${p.change.trim().slice(0, 200)}"`]);
-  return { kind: 'sent', orderId: order.id, outlet: order.outlet, totalPaise: Number(order.total_paise) };
+  return { kind: 'sent', orderId: order.id, outlet: order.outlet, totalPaise: Number(order.total) };
+}
+
+/**
+ * The shop wants a better price. Nothing here changes one: adjust_price is
+ * blocked outright, and a rep at a counter is the wrong person to decide it.
+ * The ask goes to his ASM in his words, against the slip he has open at that
+ * counter or else his last order today, so the ASM sees what it is worth.
+ */
+export async function requestPriceException(p: {
+  repId: string; ask: string; shop?: string;
+}): Promise<{ kind: 'sent'; outlet: string; totalPaise: number; onDraft: boolean }
+         | { kind: 'error'; message: string }> {
+  const subject = await findRepSubject(p.repId, p.shop, true);
+  if (!subject) return { kind: 'error', message: 'Send the order first, then ask for the price.' };
+
+  const asm = await one<{ asm_id: string }>(`SELECT asm_id FROM reps WHERE id = $1`, [p.repId]);
+  await sql(
+    `INSERT INTO approvals (id, kind, subject_id, outlet_id, requested_by, assigned_to, reason, status)
+     VALUES ($1,'price_exception',$2,$3,$4,$5,$6,'pending')`,
+    [newId('APR'), subject.id, subject.outlet_id, p.repId, asm?.asm_id ?? 'M-01',
+     `Rep asks: "${p.ask.trim().slice(0, 200)}"`]);
+  return { kind: 'sent', outlet: subject.outlet, totalPaise: Number(subject.total), onDraft: subject.is_draft };
 }

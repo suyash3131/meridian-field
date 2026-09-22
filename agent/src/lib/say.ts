@@ -45,6 +45,7 @@ const HI: [RegExp, string][] = [
   [/^Cancelled\. Nothing sent\.$/, 'कैंसल हो गया। कुछ नहीं भेजा गया।'],
   [/^What to change\? Send just that, like "2 calci d3"\.$/, 'क्या बदलना है? बस वही भेजें, जैसे "2 calci d3"।'],
   [/^No order placed today to change\.$/, 'आज कोई ऑर्डर नहीं है जिसे बदला जाए।'],
+  [/^Send the order first, then ask for the price\.$/, 'पहले ऑर्डर भेजें, फिर रेट के लिए पूछें।'],
   [/^That order was cancelled\. Nothing was sent\.$/, 'वह ऑर्डर कैंसल हो चुका है। कुछ नहीं भेजा गया।'],
   [/^That one is already with your ASM\.$/, 'वह पहले से आपके ASM के पास है।'],
   [/^That order timed out after (\d+) minutes\. Send it again\.$/, 'वह ऑर्डर $1 मिनट में कन्फ़र्म नहीं हुआ, बंद हो गया। दोबारा भेजें।'],
@@ -136,6 +137,12 @@ export const alreadyText = (paise: number, held: boolean, lang: Lang, outlet?: s
             : `पहले ही हो चुका है ✓ ${at(outlet)}${rsOf(paise)}। दोबारा नहीं भेजा।`)
     : (held ? `Already saved ✓ ${at(outlet)}${rsOf(paise)}, waiting on your ASM.`
             : `Already placed ✓ ${at(outlet)}${rsOf(paise)}. Not sent twice.`);
+
+/** A better price, asked of the ASM rather than given. */
+export const priceAskText = (outlet: string, ask: string, onDraft: boolean, lang: Lang) =>
+  lang === 'hi'
+    ? `ASM से पूछ लिया ✓\n\n${outlet}: "${ask}"। मंज़ूरी तक रेट वही रहेगा।` + (onDraft ? ' इसी रेट पर कन्फ़र्म करना है तो "हाँ" भेजें।' : '')
+    : `Asked your ASM ✓\n\n${outlet}: "${ask}". Prices stay as shown unless they approve.` + (onDraft ? ' Say yes to place it at this price.' : '');
 
 /** A fix to a placed order, sent to the ASM rather than made. */
 export const changeSentText = (outlet: string, paise: number, lang: Lang) =>
