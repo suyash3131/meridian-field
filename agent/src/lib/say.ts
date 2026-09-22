@@ -44,6 +44,8 @@ const HI: [RegExp, string][] = [
   [/^Cancelled\. Nothing sent\.$/, 'कैंसल हो गया। कुछ नहीं भेजा गया।'],
   [/^What to change\? Send just that, like "2 calci d3"\.$/, 'क्या बदलना है? बस वही भेजें, जैसे "2 calci d3"।'],
   [/^No order placed today to change\.$/, 'आज कोई ऑर्डर नहीं है जिसे बदला जाए।'],
+  [/^That order was cancelled\. Nothing was sent\.$/, 'वह ऑर्डर कैंसल हो चुका है। कुछ नहीं भेजा गया।'],
+  [/^That one is already with your ASM\.$/, 'वह पहले से आपके ASM के पास है।'],
 ];
 
 export function tr(text: string, lang: Lang): string {
@@ -109,6 +111,14 @@ export const heldText = (paise: number, lang: Lang) =>
   lang === 'hi'
     ? `सेव हो गया — ${rsOf(paise)}। यह दुकान की क्रेडिट लिमिट से ज़्यादा है, इसलिए मंज़ूरी के लिए ASM के पास गया है। विज़िट दर्ज। आगे बढ़ें।`
     : `Saved — ${rsOf(paise)}. It crosses this counter's credit limit, so it has gone to your ASM for approval. Visit recorded. Move on.`;
+
+/** He said yes again, and the order had already gone through. */
+export const alreadyText = (paise: number, held: boolean, lang: Lang) =>
+  lang === 'hi'
+    ? (held ? `पहले ही सेव हो चुका है ✓ ${rsOf(paise)}, ASM की मंज़ूरी का इंतज़ार है।`
+            : `पहले ही हो चुका है ✓ ${rsOf(paise)}। दोबारा नहीं भेजा।`)
+    : (held ? `Already saved ✓ ${rsOf(paise)}, waiting on your ASM.`
+            : `Already placed ✓ ${rsOf(paise)}. Not sent twice.`);
 
 /** A fix to a placed order, sent to the ASM rather than made. */
 export const changeSentText = (outlet: string, paise: number, lang: Lang) =>

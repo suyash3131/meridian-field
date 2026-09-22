@@ -504,7 +504,38 @@ export type CommitResult = {
   totalPaise: number;
   message: string;
   approvalId?: string;
+  /** He said yes again to an order that already went through. */
+  already?: boolean;
 };
+
+/**
+ * A yes for a draft that is no longer open. On bad signal a rep taps "haan"
+ * twice, or sends it again because he never saw "Done". "No longer open" reads
+ * like a failure and he re-enters the whole order, so say what actually
+ * happened to it.
+ */
+async function alreadyDone(draftId: string): Promise<CommitResult | { error: string }> {
+  const d = await one<{ status: string; rep_id: string; state: { orderId?: string; fingerprint?: string } }>(
+    `SELECT status, rep_id, state FROM drafts WHERE id = $1`, [draftId]);
+  if (!d) return { error: 'that order is no longer open' };
+  if (d.status === 'abandoned') return { error: 'That order was cancelled. Nothing was sent.' };
+  if (d.status === 'parked') return { error: 'That one is already with your ASM.' };
+  if (d.status !== 'committed') return { error: 'that order is no longer open' };
+
+  // Drafts committed before the order id was kept on them are found by
+  // fingerprint: same rep, same counter, same lines.
+  const o = await one<{ id: string; status: 'confirmed' | 'held_credit'; total_paise: string; visit_id: string }>(
+    d.state.orderId
+      ? `SELECT id, status, total_paise, visit_id FROM orders WHERE id = $1`
+      : `SELECT id, status, total_paise, visit_id FROM orders
+          WHERE fingerprint = $1 AND rep_id = $2 ORDER BY created_at DESC LIMIT 1`,
+    d.state.orderId ? [d.state.orderId] : [d.state.fingerprint ?? '', d.rep_id]);
+  if (!o) return { error: 'that order is no longer open' };
+  return {
+    status: o.status, orderId: o.id, visitId: o.visit_id, totalPaise: Number(o.total_paise),
+    message: 'Already placed.', already: true,
+  };
+}
 
 export async function confirmOrder(draftId: string): Promise<CommitResult | { error: string }> {
   const draft = await one<{
@@ -513,7 +544,7 @@ export async function confirmOrder(draftId: string): Promise<CommitResult | { er
     gps_lat: number | null; gps_lng: number | null; photo_url: string | null;
     created_at: string;
   }>(`SELECT * FROM drafts WHERE id = $1 AND status = 'open'`, [draftId]);
-  if (!draft) return { error: 'that order is no longer open' };
+  if (!draft) return await alreadyDone(draftId);
 
   const s = draft.state as {
     lines?: { skuId: string; qty: number; unitPaise: number; totalPaise: number;
@@ -584,7 +615,8 @@ export async function confirmOrder(draftId: string): Promise<CommitResult | { er
          l.matchedFrom, l.confidence, l.method]
       );
 
-    await q(`UPDATE drafts SET status='committed', updated_at=now() WHERE id=$1`, [draftId]);
+    await q(`UPDATE drafts SET status='committed', state = state || $2::jsonb, updated_at=now()
+              WHERE id=$1`, [draftId, JSON.stringify({ orderId })]);
 
     if (overLimit) {
       // The order is kept, not thrown away: rejecting it loses the sale and the

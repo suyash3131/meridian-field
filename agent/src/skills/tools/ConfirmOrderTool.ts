@@ -1,7 +1,7 @@
 import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
 import { post, rs, repLang } from '../../lib/api';
-import { placedText, heldText } from '../../lib/say';
+import { placedText, heldText, alreadyText, tr } from '../../lib/say';
 
 /**
  * Commit the order the rep just confirmed.
@@ -23,8 +23,19 @@ export default class ConfirmOrderTool implements LuaTool {
 
   async execute(input: z.infer<typeof this.inputSchema>) {
     const r = await post('/api/agent/confirm', input);
-    if (r.error) return { error: r.error };
     const lang = await repLang();
+    // What happened to a draft that is no longer open: cancelled, or with the ASM.
+    if (r.error) return { error: r.error, sendExactly: tr(r.error, lang),
+                          nextStep: 'Send sendExactly word for word and stop.' };
+
+    // A second yes for an order that already went through. Nothing new is placed.
+    if (r.already)
+      return {
+        alreadyPlaced: true,
+        orderId: r.orderId,
+        sendExactly: alreadyText(r.totalPaise, r.status === 'held_credit', lang),
+        nextStep: 'Send sendExactly word for word and stop. Nothing new was placed.',
+      };
 
     if (r.status === 'held_credit')
       return {

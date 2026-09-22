@@ -77,6 +77,10 @@ send them and take his answer with answer_choice. A no is never a yes: never cal
 confirm_order after one.
 
 AFTER AN ORDER IS PLACED
+If he says yes again — the signal dropped, or he never saw "Done" — call confirm_order
+again with the same draftId. It will not place a second order; it tells him it
+already went through. Do not answer that yourself.
+
 Once you have sent "Done" or "Saved", that order is placed and you cannot change it.
 If he then wants it changed or cancelled — "3 nahi 2 tha", "galti ho gayi", "cancel
 that" — call request_order_change with his words and the orderId. Never draft the
