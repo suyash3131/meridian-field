@@ -325,7 +325,8 @@ CREATE TABLE returns (
 CREATE TABLE approvals (
   id            TEXT PRIMARY KEY,
   kind          TEXT NOT NULL CHECK (kind IN
-                  ('credit_override', 'return', 'price_exception')),
+                  ('credit_override', 'return', 'price_exception',
+                   'order_change')),        -- a rep asking to fix an order already placed
   subject_id    TEXT NOT NULL,            -- order id, return id, ...
   outlet_id     TEXT REFERENCES outlets(id),
   requested_by  TEXT REFERENCES reps(id),

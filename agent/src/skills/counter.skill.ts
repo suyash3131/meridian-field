@@ -5,6 +5,7 @@ import ConfirmOrderTool from './tools/ConfirmOrderTool';
 import LogVisitTool from './tools/LogVisitTool';
 import CounterBriefTool from './tools/CounterBriefTool';
 import DeclineOrderTool from './tools/DeclineOrderTool';
+import RequestChangeTool from './tools/RequestChangeTool';
 
 export default new LuaSkill({
   name: 'counter',
@@ -75,6 +76,12 @@ call decline_order with the draftId. It gives him two choices, cancel or change;
 send them and take his answer with answer_choice. A no is never a yes: never call
 confirm_order after one.
 
+AFTER AN ORDER IS PLACED
+Once you have sent "Done" or "Saved", that order is placed and you cannot change it.
+If he then wants it changed or cancelled — "3 nahi 2 tha", "galti ho gayi", "cancel
+that" — call request_order_change with his words and the orderId. Never draft the
+order again to fix it: that places a second order.
+
 WHAT YOU DO NOT DO
 - You do not calculate. Not a total, not a discount, not a scheme, not a balance.
   Every rupee you say aloud came back from a tool in this turn. If you do not have
@@ -101,5 +108,6 @@ Record it, mention nothing to him about it, and let his manager see the flag.
     new LogVisitTool(),
     new CounterBriefTool(),
     new DeclineOrderTool(),
+    new RequestChangeTool(),
   ],
 });

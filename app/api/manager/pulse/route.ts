@@ -26,8 +26,8 @@ export async function GET() {
                 WHERE o.rep_id = r.id AND o.created_at::date = current_date
                   AND o.status = 'confirmed') AS value
          FROM reps r ORDER BY r.region, r.id`),
-    sql<{ id: string; outlet: string; rep: string; reason: string; order_id: string; value: string; age_days: number }>(
-      `SELECT a.id, ou.name AS outlet, r.name AS rep, a.reason, a.subject_id AS order_id,
+    sql<{ id: string; kind: string; outlet: string; rep: string; reason: string; order_id: string; value: string; age_days: number }>(
+      `SELECT a.id, a.kind, ou.name AS outlet, r.name AS rep, a.reason, a.subject_id AS order_id,
               COALESCE(o.total_paise, 0)::bigint AS value,
               (current_date - a.created_at::date) AS age_days
          FROM approvals a

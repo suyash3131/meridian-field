@@ -1,4 +1,4 @@
-import { sql, one, tx, businessWeekday } from './db';
+import { sql, one, tx, businessWeekday, BUSINESS_TZ } from './db';
 import { resolveOutlet, resolveSku, learnAlias, metres } from './match';
 import type { OutletMatch, SkuMatch } from './match';
 
@@ -702,4 +702,38 @@ export async function logVisit(v: {
   await logEvent({ repId: v.repId, threadId: v.threadId, event: 'confirmed', visitId });
 
   return { visitId, outlet: outlet.name, verification, onBeat };
+}
+
+/**
+ * The rep wants to fix an order he has already placed.
+ *
+ * A placed order is a record the distributor may already be acting on, so
+ * nothing here edits or cancels it. The request goes to his ASM with his own
+ * words, and the order stays exactly as placed until a person decides. The
+ * alternative, redrafting it, would quietly create a second order.
+ */
+export async function requestOrderChange(p: {
+  repId: string; change: string; orderId?: string;
+}): Promise<{ kind: 'sent'; orderId: string; outlet: string; totalPaise: number }
+         | { kind: 'error'; message: string }> {
+  // His own order only, and only one placed today: yesterday's is past fixing
+  // from the counter.
+  const order = await one<{ id: string; outlet_id: string; outlet: string; total_paise: string }>(
+    `SELECT o.id, o.outlet_id, ou.name AS outlet, o.total_paise
+       FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
+      WHERE o.rep_id = $1 AND o.status IN ('confirmed','held_credit')
+        AND (o.created_at AT TIME ZONE '${BUSINESS_TZ}')::date
+            = (now() AT TIME ZONE '${BUSINESS_TZ}')::date
+        AND ($2::text IS NULL OR o.id = $2)
+      ORDER BY o.created_at DESC LIMIT 1`,
+    [p.repId, p.orderId ?? null]);
+  if (!order) return { kind: 'error', message: 'No order placed today to change.' };
+
+  const asm = await one<{ asm_id: string }>(`SELECT asm_id FROM reps WHERE id = $1`, [p.repId]);
+  await sql(
+    `INSERT INTO approvals (id, kind, subject_id, outlet_id, requested_by, assigned_to, reason, status)
+     VALUES ($1,'order_change',$2,$3,$4,$5,$6,'pending')`,
+    [newId('APR'), order.id, order.outlet_id, p.repId, asm?.asm_id ?? 'M-01',
+     `Rep asks: "${p.change.trim().slice(0, 200)}"`]);
+  return { kind: 'sent', orderId: order.id, outlet: order.outlet, totalPaise: Number(order.total_paise) };
 }

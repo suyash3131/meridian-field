@@ -6,7 +6,7 @@ import { Bar, Headline, Initials, PageHeader, Skeleton, rs } from './ui';
 type Pulse = {
   today: { visits: number; orders: number; value: string; scheduled: number };
   byRep: { rep_id: string; name: string; region: string; scheduled: number; made: number; value: string }[];
-  approvals: { id: string; outlet: string; rep: string; reason: string; order_id: string; value: string; age_days: number }[];
+  approvals: { id: string; kind: string; outlet: string; rep: string; reason: string; order_id: string; value: string; age_days: number }[];
   flagged: { id: string; outlet: string; rep: string; note: string; at: string }[];
 };
 type Answer = {
@@ -36,6 +36,15 @@ const shortReason = (r: string) => {
   return m ? `over its ${m[1]} limit` : r;
 };
 
+/** "5 held orders and 1 change request are waiting on you." */
+function waitingTitle(holds: number, changes: number) {
+  const parts = [
+    holds ? `${holds} held order${holds > 1 ? 's' : ''}` : '',
+    changes ? `${changes} change request${changes > 1 ? 's' : ''}` : '',
+  ].filter(Boolean);
+  return `${parts.join(' and ')} ${holds + changes > 1 ? 'are' : 'is'} waiting on you.`;
+}
+
 function Kpi({ label, value, foot, tone }: { label: string; value: React.ReactNode; foot: React.ReactNode; tone?: 'danger' }) {
   return (
     <div className={`card px-[18px] py-4 flex flex-col gap-2.5 ${tone === 'danger' ? 'border-danger-line' : ''}`}>
@@ -58,7 +67,11 @@ export default function Today() {
 
   const hour = Number(ist({ hour: 'numeric', hour12: false }));
   const greeting = hour < 12 ? 'Good morning, Anita' : hour < 17 ? 'Good afternoon, Anita' : 'Good evening, Anita';
-  const decisions = d ? groupByOutlet(d.approvals) : [];
+  // A change request is a decision too, but it is not money held: it gets its
+  // own line and stays out of the "Held for you" figure.
+  const holds = d ? d.approvals.filter((a) => a.kind !== 'order_change') : [];
+  const changes = d ? d.approvals.filter((a) => a.kind === 'order_change') : [];
+  const decisions = groupByOutlet(holds);
   const held = decisions.reduce((s, g) => s + g.value, 0);
   const overdue = week?.findings.find((f) => f.code === 'collections')?.detail;
   const started = (d?.today.visits ?? 0) > 0;
@@ -80,14 +93,14 @@ export default function Today() {
             <Headline
               eyebrow={greeting}
               title={
-                d.approvals.length > 0
-                  ? <>{d.approvals.length} held order{d.approvals.length > 1 ? 's are' : ' is'} waiting on you.</>
+                holds.length + changes.length > 0
+                  ? <>{waitingTitle(holds.length, changes.length)}</>
                   : started
                     ? <>{d.today.visits} of {d.today.scheduled} counters covered so far.</>
                     : <>Nothing needs you right now.</>
               }
               sub={
-                d.approvals.length > 0
+                holds.length + changes.length > 0
                   ? 'Nothing ships until you decide.'
                   : started ? `${d.today.orders} orders placed today.` : 'Reps start at 9.'
               }
@@ -100,7 +113,7 @@ export default function Today() {
                    foot={started ? `${rs(d.today.value)} confirmed` : 'Reps start at 9:00'} />
               <Kpi label="Held for you" tone={held ? 'danger' : undefined}
                    value={rs(held)}
-                   foot={`${d.approvals.length} orders · ${decisions.length} counter${decisions.length === 1 ? '' : 's'}`} />
+                   foot={`${holds.length} orders · ${decisions.length} counter${decisions.length === 1 ? '' : 's'}`} />
               <Kpi label="This week"
                    value={week ? rs(week.trend.thisWeek) : '—'}
                    foot={week ? (
@@ -120,11 +133,11 @@ export default function Today() {
               <section className="card overflow-hidden">
                 <div className="flex items-center gap-2.5 px-5 py-4">
                   <h2 className="text-[0.875rem] font-semibold">Needs your decision</h2>
-                  {decisions.length > 0 && (
+                  {d.approvals.length > 0 && (
                     <span className="pill fig bg-danger-soft text-danger">{d.approvals.length}</span>
                   )}
                 </div>
-                {decisions.length === 0 ? (
+                {d.approvals.length === 0 ? (
                   <p className="px-5 pb-5 text-[0.875rem] text-ink-2">
                     Nothing is waiting. Every order went straight through.
                   </p>
@@ -147,8 +160,26 @@ export default function Today() {
                         </div>
                       </li>
                     ))}
+                    {changes.map((c) => (
+                      <li key={c.id} className="flex items-start gap-3.5 px-5 py-4">
+                        <Initials name={c.outlet} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.875rem] font-medium">{c.outlet}</p>
+                          <p className="mt-0.5 text-[0.8125rem] text-ink-2">
+                            Change to a placed order · {c.rep}
+                          </p>
+                          <p className="mt-1 text-[0.8125rem] text-ink">{c.reason.replace(/^Rep asks: /, '')}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="fig text-[0.875rem] font-medium">{rs(c.value)}</p>
+                          <p className="pill mt-1.5 bg-track text-ink-2">
+                            {c.age_days === 0 ? 'today' : `${c.age_days} day${c.age_days > 1 ? 's' : ''}`}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
                     <li className="px-5 py-3 bg-sunk text-[0.75rem] text-ink-3">
-                      The agent can’t release a hold. That decision stays with a person.
+                      The agent can’t release a hold or change a placed order. That decision stays with a person.
                     </li>
                   </ul>
                 )}
