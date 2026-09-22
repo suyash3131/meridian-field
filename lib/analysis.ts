@@ -219,13 +219,18 @@ async function coldCounters(region: string | null): Promise<Finding[]> {
        FROM last_seen ls WHERE ls.days >= 14 ORDER BY ls.days DESC LIMIT 5`,
     [region]
   );
+  // 999 is the "no visit on record" stand-in from the query above.
   return rows.map((r) => ({
     code: 'cold_counter',
-    headline: `${r.name} has not been called on in ${r.days} days.`,
+    headline: r.days >= 999
+      ? `${r.name} has never been called on.`
+      : `${r.name} has not been called on in ${r.days} days.`,
     impactPaise: Number(r.weekly),
     estimated: true,
-    detail: { outlet: r.name, daysSinceVisit: r.days },
-    lever: `Worth about ${rs(Number(r.weekly))} an order when it is covered. Three weeks is long enough for a rival to take the shelf.`,
+    detail: { outlet: r.name, daysSinceVisit: r.days >= 999 ? null : r.days },
+    lever: Number(r.weekly) > 0
+      ? `Worth about ${rs(Number(r.weekly))} an order when it is covered. Three weeks is long enough for a rival to take the shelf.`
+      : 'No order history yet, so there is no number to put on it. Worth a first call.',
   }));
 }
 

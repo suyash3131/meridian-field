@@ -52,7 +52,12 @@ const rupees = (r) => Math.round(r * 100);           // ₹ -> paise
 // Deterministic PRNG. Data that changes on every run cannot be reasoned about:
 // the manager screens would tell a different story each deploy, and the numbers
 // in the write-up would stop matching the numbers in the demo.
-let _s = 20260920 >>> 0;
+// The seed number itself was chosen. At this volume (a few orders per rep per
+// day) ordinary noise can be larger than the one dip the data is built around,
+// and the first seed hid Ramesh's slip on some weekdays. 218 was picked by
+// running candidates in memory and keeping one where the designed story holds
+// through the day: North down, Ramesh the cause, everyone else within ~10%.
+let _s = 218 >>> 0;
 const rnd = () => {
   _s = (_s + 0x6D2B79F5) >>> 0;
   let t = _s;
