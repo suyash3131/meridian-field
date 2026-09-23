@@ -10,7 +10,10 @@ skills:
     version: 1.0.21
 webhooks: []
 jobs: []
-preprocessors: []
+preprocessors:
+  - name: email-roster
+    preprocessorId: ''
+    version: 1.0.0
 postprocessors: []
 mcpServers: []
 backup:

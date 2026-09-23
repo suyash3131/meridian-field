@@ -33,7 +33,8 @@ CREATE TABLE managers (
   id          TEXT PRIMARY KEY,           -- 'M-01'
   name        TEXT NOT NULL,
   role        TEXT NOT NULL CHECK (role IN ('asm', 'regional_head')),
-  region      TEXT                        -- NULL for the regional head (sees all)
+  region      TEXT,                       -- NULL for the regional head (sees all)
+  email       TEXT UNIQUE                 -- how the email channel knows who is asking
 );
 
 CREATE TABLE reps (
@@ -44,7 +45,8 @@ CREATE TABLE reps (
   region      TEXT NOT NULL,
   -- The language he chose in the app. The agent's tools read it and write
   -- their replies in it, so it never depends on the model remembering.
-  lang        TEXT NOT NULL DEFAULT 'en' CHECK (lang IN ('en', 'hi'))
+  lang        TEXT NOT NULL DEFAULT 'en' CHECK (lang IN ('en', 'hi')),
+  email       TEXT UNIQUE                 -- how the email channel knows who is writing
 );
 
 -- =============================================================================
@@ -61,6 +63,7 @@ CREATE TABLE outlets (
 
   drug_licence        TEXT,               -- required by law to sell medicine
   gstin               TEXT,
+  email               TEXT,               -- where the order confirmation goes
 
   credit_limit_paise  BIGINT NOT NULL DEFAULT 0,
   credit_terms_days   INT    NOT NULL DEFAULT 15,

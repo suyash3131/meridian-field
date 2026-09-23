@@ -36,13 +36,19 @@ export async function currentRep(claimedRepId?: string): Promise<{ id: string; n
   const user = await User.get();
   if (!user) throw new Error('No rep is attached to this conversation.');
 
+  if ((user as any).role === 'manager')
+    throw new Error('This address belongs to a manager. Orders are placed by reps; ask me about the territory instead.');
+
   const bound = (user as any).repId as string | undefined;
   if (bound) return { id: bound, name: ((user as any).repName as string) ?? bound };
 
   const phone = user._luaProfile?.mobileNumbers?.[0];
-  const found = await post<{ id?: string; name?: string; region?: string; verifiedBy?: string; error?: string }>(
-    '/api/agent/whoami', { phone, claimedRepId }
+  const email = senderEmail(user);
+  const found = await post<{ id?: string; name?: string; region?: string; role?: string; verifiedBy?: string; error?: string }>(
+    '/api/agent/whoami', { phone, email, claimedRepId }
   );
+  if (found.role === 'manager')
+    throw new Error('This address belongs to a manager. Orders are placed by reps; ask me about the territory instead.');
   if (!found.id)
     throw new Error("I don't know which rep this is. Open the rep view and pick your name.");
 
@@ -56,6 +62,14 @@ export async function currentRep(claimedRepId?: string): Promise<{ id: string; n
     },
   });
   return { id: found.id, name: found.name! };
+}
+
+/** The address an email conversation came from, as Lua's profile records it.
+ *  Undefined on every other channel. */
+export function senderEmail(user: any): string | undefined {
+  const e = user?._luaProfile?.emailAddresses?.[0];
+  const addr = typeof e === 'string' ? e : e?.address;
+  return addr ? String(addr).toLowerCase() : undefined;
 }
 
 /** ₹ for display only. Every number crossing this boundary is integer paise. */

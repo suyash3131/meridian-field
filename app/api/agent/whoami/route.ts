@@ -12,6 +12,10 @@ export const dynamic = 'force-dynamic';
  * consulted when there is no phone — the browser demo — and even then it is
  * checked against the roster rather than trusted. After the first bind the
  * agent reads the rep from its own user record and stops asking.
+ *
+ * On email the sender's address is the identity, the same way the phone is on
+ * WhatsApp. An address can belong to a manager instead of a rep: managers are
+ * let in to ask about their territory, and the order tools refuse them.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -23,14 +27,27 @@ export async function POST(req: NextRequest) {
         `SELECT id, name, region FROM reps WHERE regexp_replace(phone, '[^0-9]', '', 'g') LIKE '%' || $1`,
         [phone.slice(-10)]
       );
-      if (byPhone) return NextResponse.json({ ...byPhone, verifiedBy: 'phone number' });
+      if (byPhone) return NextResponse.json({ ...byPhone, role: 'rep', verifiedBy: 'phone number' });
+    }
+
+    const email = b.email ? String(b.email).trim().toLowerCase() : '';
+    if (email) {
+      const rep = await one<{ id: string; name: string; region: string }>(
+        `SELECT id, name, region FROM reps WHERE lower(email) = $1`, [email]);
+      if (rep) return NextResponse.json({ ...rep, role: 'rep', verifiedBy: 'email address' });
+      const mgr = await one<{ id: string; name: string; region: string | null; role: string }>(
+        `SELECT id, name, region, role FROM managers WHERE lower(email) = $1`, [email]);
+      if (mgr) return NextResponse.json({ ...mgr, role: 'manager', title: mgr.role, verifiedBy: 'email address' });
+      // An unknown address is never offered the "which rep are you?" route the
+      // browser demo has: anyone can type a name into an email.
+      return NextResponse.json({ error: 'this address is not on the team roster' }, { status: 404 });
     }
 
     if (b.claimedRepId) {
       const claimed = await one<{ id: string; name: string; region: string }>(
         `SELECT id, name, region FROM reps WHERE id = $1`, [String(b.claimedRepId).toUpperCase()]
       );
-      if (claimed) return NextResponse.json({ ...claimed, verifiedBy: 'session' });
+      if (claimed) return NextResponse.json({ ...claimed, role: 'rep', verifiedBy: 'session' });
     }
 
     return NextResponse.json({ error: 'no rep matches this conversation' }, { status: 404 });

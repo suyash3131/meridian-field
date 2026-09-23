@@ -2,6 +2,7 @@ import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
 import { post, rs, repLang } from '../../lib/api';
 import { placedText, heldText, alreadyText, tr } from '../../lib/say';
+import { sendOrderMail } from '../../lib/mail';
 
 /**
  * Commit the order the rep just confirmed.
@@ -37,13 +38,17 @@ export default class ConfirmOrderTool implements LuaTool {
         nextStep: 'Send sendExactly word for word and stop. Nothing new was placed.',
       };
 
+    // Only a first confirmation gets here, so each order emails at most once.
+    const mailed = await sendOrderMail(r.orderId);
+
     if (r.status === 'held_credit')
       return {
         placed: false,
         held: true,
         orderId: r.orderId,
         total: rs(r.totalPaise),
-        sendExactly: heldText(r.totalPaise, lang, r.outlet),
+        sendExactly: heldText(r.totalPaise, lang, r.outlet) +
+          (mailed.asm ? (lang === 'hi' ? ' ASM को ईमेल भेजा।' : ' ASM emailed.') : ''),
         nextStep: 'Send sendExactly word for word and stop. Do not offer to override this: you cannot, and neither can the rep.',
       };
 
@@ -51,7 +56,8 @@ export default class ConfirmOrderTool implements LuaTool {
       placed: true,
       orderId: r.orderId,
       total: rs(r.totalPaise),
-      sendExactly: placedText(r.totalPaise, lang, r.outlet),
+      sendExactly: placedText(r.totalPaise, lang, r.outlet) +
+        (mailed.chemist ? (lang === 'hi' ? ' दुकान को ईमेल से पुष्टि भेजी।' : ' Confirmation emailed to the shop.') : ''),
       nextStep: 'Send sendExactly to the rep word for word and stop.',
     };
   }

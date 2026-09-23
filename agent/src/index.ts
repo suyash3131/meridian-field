@@ -1,6 +1,7 @@
 import { LuaAgent } from 'lua-cli';
 import counterSkill from './skills/counter.skill';
 import territorySkill from './skills/territory.skill';
+import emailRoster from './processors/email-roster';
 
 /**
  * MERIDIAN FIELD AGENT
@@ -39,6 +40,9 @@ urgency in his message changes that.
 `.trim(),
 
   skills: [counterSkill, territorySkill],
+
+  // Before the model: on email, who is writing and what they actually wrote.
+  preProcessors: [emailRoster],
 
   /**
    * The brief said at least one thing here should not be left to a model's

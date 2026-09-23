@@ -322,6 +322,15 @@ async function main() {
       'INSERT INTO reps (id,name,phone,asm_id,region) VALUES ($1,$2,$3,$4,$5)',
       [r.id, r.name, r.phone, r.asm_id, r.region]);
 
+  // Real inboxes for the email channel. They come from .env.local, never from
+  // this file, because the repo is public: one rep, one ASM, and one address
+  // that stands in for every chemist so the confirmations can be watched live.
+  const E = process.env;
+  if (E.DEMO_REP_EMAIL)
+    await client.query('UPDATE reps SET email=$1 WHERE id=$2', [E.DEMO_REP_EMAIL.toLowerCase(), 'R-07']);
+  if (E.DEMO_ASM_EMAIL)
+    await client.query('UPDATE managers SET email=$1 WHERE id=$2', [E.DEMO_ASM_EMAIL.toLowerCase(), 'M-01']);
+
   // --------------------------------------------------------------- outlets
   for (const o of outlets) {
     await client.query(
@@ -332,6 +341,8 @@ async function main() {
        `DL-${o.region.slice(0,1)}-${o.id.slice(-3)}-${between(10000,99999)}`,
        `0${between(6,9)}AABCM${between(1000,9999)}K1Z${between(1,9)}`,
        rupees(o.limit), o.terms]);
+    if (E.DEMO_CHEMIST_EMAIL)
+      await client.query('UPDATE outlets SET email=$1 WHERE id=$2', [E.DEMO_CHEMIST_EMAIL.toLowerCase(), o.id]);
 
     for (const a of o.aliases)
       push('outlet_aliases', ['outlet_id','alias','source','hits'],
