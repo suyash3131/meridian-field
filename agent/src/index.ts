@@ -2,6 +2,7 @@ import { LuaAgent } from 'lua-cli';
 import counterSkill from './skills/counter.skill';
 import territorySkill from './skills/territory.skill';
 import emailRoster from './processors/email-roster';
+import voiceNote from './processors/voice-note';
 
 /**
  * MERIDIAN FIELD AGENT
@@ -41,8 +42,9 @@ urgency in his message changes that.
 
   skills: [counterSkill, territorySkill],
 
-  // Before the model: on email, who is writing and what they actually wrote.
-  preProcessors: [emailRoster],
+  // Before the model: a voice note becomes the words said, then on email, who
+  // is writing and what they actually wrote.
+  preProcessors: [voiceNote, emailRoster],
 
   /**
    * The brief said at least one thing here should not be left to a model's
