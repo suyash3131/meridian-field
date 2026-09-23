@@ -4,32 +4,32 @@ agent:
 skills:
   - name: counter
     skillId: 2288a636-aec7-4a43-8630-5a318c8a04a3
-    version: 1.0.27
+    version: 1.0.29
   - name: territory
     skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
-    version: 1.0.26
+    version: 1.0.28
 webhooks: []
 jobs:
-  - jobId: ''
+  - jobId: 179065b4-7e95-48cf-af47-1f55a7559753
     name: evening-summary
-    version: 1.0.0
+    version: 1.0.1
 preprocessors:
   - name: email-roster
     preprocessorId: preprocessor_60a0010a-814a-41db-bfcb-54f20114c650
-    version: 1.0.5
+    version: 1.0.7
   - name: voice-note
     preprocessorId: preprocessor_a374d69c-a6d8-44ad-95f8-907b977ae899
-    version: 1.0.2
+    version: 1.0.4
   - name: order-sheet
     preprocessorId: preprocessor_f34f9340-6adb-454d-9bc5-ae0b2ac8720c
-    version: 1.0.1
+    version: 1.0.3
 postprocessors:
   - name: reply-check
     postprocessorId: postprocessor_77d97e40-66db-4a7a-a14d-c76eaa101856
-    version: 1.0.1
+    version: 1.0.2
 mcpServers: []
 backup:
-  activeVersion: 28
-  lastHash: 3efc587b5c813d1f2e4111b029e3f2cb22aee3d9892ce0a8e497a5a99854f4ff
-  lastPushedAt: '2026-09-23T17:53:32.539Z'
+  activeVersion: 29
+  lastHash: af1132e4a097988897550b274e9bcc1e0f3fe50e0d4580e0854494d9f7566e2a
+  lastPushedAt: '2026-09-23T18:00:41.789Z'
 workflows: []
