@@ -1,5 +1,6 @@
 import { User } from 'lua-cli';
 import { type Lang, readBackText, replyIn, tr } from './say';
+import { note } from './guard';
 
 /**
  * The CRM this agent writes into. Every rule that matters — which counter,
@@ -14,12 +15,16 @@ export async function post<T = any>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return (await res.json()) as T;
+  const out = await res.json();
+  await note(path, out);
+  return out as T;
 }
 
 export async function get<T = any>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
-  return (await res.json()) as T;
+  const out = await res.json();
+  await note(path, out);
+  return out as T;
 }
 
 /**

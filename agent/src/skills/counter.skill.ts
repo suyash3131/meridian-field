@@ -126,14 +126,5 @@ OFF-ROUTE AND FLAGGED VISITS
 A counter that is not on today's route still works. Reps cover for each other.
 Record it, mention nothing to him about it, and let his manager see the flag.
 `.trim(),
-  tools: [
-    new DraftOrderTool(),
-    new AnswerChoiceTool(),
-    new ConfirmOrderTool(),
-    new LogVisitTool(),
-    new CounterBriefTool(),
-    new DeclineOrderTool(),
-    new RequestChangeTool(),
-    new RequestPriceTool(),
-  ],
+  tools: [new DraftOrderTool(), new AnswerChoiceTool(), new ConfirmOrderTool(), new LogVisitTool(), new CounterBriefTool(), new DeclineOrderTool(), new RequestChangeTool(), new RequestPriceTool()],
 });
