@@ -26,7 +26,26 @@ export default class TerritoryAnswerTool implements LuaTool {
   async execute(input: z.infer<typeof this.inputSchema>) {
     const q = input.region === 'all' ? '' : `?region=${encodeURIComponent(input.region)}`;
     const a = await get(`/api/manager/answer${q}`);
+    const money = (f: any) => f.impactPaise > 0
+      ? (f.estimated ? 'about ' : '') + '₹' + Math.round(f.impactPaise / 100).toLocaleString('en-IN')
+      : null;
+
+    // The whole reply, built here. Every figure is the server's, in the server's
+    // order, and each cause is its own paragraph: email and the chat widget both
+    // fold single line breaks, which ran the causes together into one block.
+    const sendExactly = [
+      `**${a.headline}**`,
+      ...a.findings.map((f: any) => {
+        const m = money(f);
+        const said = m && f.headline.includes(m.replace('about ', ''));
+        return `- ${f.headline}` + (m && !said ? ` (${m})` : '');
+      }),
+      a.biggestLever ? `**First thing:** ${a.biggestLever}` : '',
+    ].filter(Boolean).join('\n\n');
+
     return {
+      sendExactly,
+      nextStep: 'Send sendExactly word for word, nothing before or after it, and stop.',
       headline: a.headline,
       causesInOrder: a.findings.map((f: any) => ({
         cause: f.headline,
