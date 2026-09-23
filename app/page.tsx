@@ -32,7 +32,9 @@ function groupByOutlet(approvals: Pulse['approvals']) {
 
 /** "Order takes Sharma Medical past its ₹50,000 credit limit" → "over its ₹50,000 limit". */
 const shortReason = (r: string) => {
-  const m = r.match(/past its (₹[\d,]+) credit limit/);
+  // Seeded holds say "past its ₹X credit limit"; live ones say
+  // "Takes <shop> to ₹Y against a limit of ₹X". Both read as one short line.
+  const m = r.match(/past its (₹[\d,]+) credit limit/) ?? r.match(/against a limit of (₹[\d,]+)/);
   return m ? `over its ${m[1]} limit` : r;
 };
 

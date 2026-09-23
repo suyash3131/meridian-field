@@ -9,7 +9,13 @@ export async function GET() {
   const [today, byRep, approvals, flagged] = await Promise.all([
     one<{ visits: number; orders: number; value: string; scheduled: number }>(
       `SELECT
-         (SELECT count(*)::int FROM visits WHERE occurred_at::date = current_date) AS visits,
+         -- Route stops reached, each counted once. Counting raw visits let three
+         -- orders at one counter read as "11 of 4".
+         (SELECT count(*)::int FROM beats b JOIN beat_outlets bo ON bo.beat_id = b.id
+           WHERE b.weekday = EXTRACT(ISODOW FROM current_date)::int
+             AND EXISTS (SELECT 1 FROM visits v WHERE v.rep_id = b.rep_id
+                           AND v.outlet_id = bo.outlet_id
+                           AND v.occurred_at::date = current_date)) AS visits,
          (SELECT count(*)::int FROM orders WHERE created_at::date = current_date
             AND status IN ('confirmed','held_credit')) AS orders,
          (SELECT COALESCE(SUM(total_paise),0)::bigint FROM orders
@@ -20,8 +26,11 @@ export async function GET() {
       `SELECT r.id AS rep_id, r.name, r.region,
               (SELECT count(*)::int FROM beats b JOIN beat_outlets bo ON bo.beat_id = b.id
                 WHERE b.rep_id = r.id AND b.weekday = EXTRACT(ISODOW FROM current_date)::int) AS scheduled,
-              (SELECT count(*)::int FROM visits v
-                WHERE v.rep_id = r.id AND v.occurred_at::date = current_date) AS made,
+              (SELECT count(*)::int FROM beats b JOIN beat_outlets bo ON bo.beat_id = b.id
+                WHERE b.rep_id = r.id AND b.weekday = EXTRACT(ISODOW FROM current_date)::int
+                  AND EXISTS (SELECT 1 FROM visits v WHERE v.rep_id = r.id
+                                AND v.outlet_id = bo.outlet_id
+                                AND v.occurred_at::date = current_date)) AS made,
               (SELECT COALESCE(SUM(o.total_paise),0)::bigint FROM orders o
                 WHERE o.rep_id = r.id AND o.created_at::date = current_date
                   AND o.status = 'confirmed') AS value

@@ -31,7 +31,9 @@ export default function Counters() {
   const [mode, setMode] = useState<Mode>('plan');
 
   const [repId, setRepId] = useState('R-07');
-  const [weekday, setWeekday] = useState(todayWeekday);
+  // Empty until the browser says what day it is. The page is built ahead of
+  // time, so reading the day during that build froze the build day into it.
+  const [weekday, setWeekday] = useState('');
   const [route, setRoute] = useState<string[]>([]);
   const [saved, setSaved] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -54,10 +56,15 @@ export default function Counters() {
       setReps(d.reps.map((r: Rep) => ({ id: r.id, name: r.name, region: r.region }))));
   }, [loadOutlets]);
 
+  useEffect(() => { setWeekday(todayWeekday()); }, []);
+
   useEffect(() => {
+    if (!weekday) return;
+    let stale = false;
     setMsg(null);
     fetch(`/api/manager/routes?repId=${repId}&weekday=${weekday}`).then((r) => r.json())
-      .then((d) => { setRoute(d.stops); setSaved(d.stops); });
+      .then((d) => { if (!stale) { setRoute(d.stops); setSaved(d.stops); } });
+    return () => { stale = true; };
   }, [repId, weekday]);
 
   const toggle = (id: string) =>
