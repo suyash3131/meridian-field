@@ -4,20 +4,20 @@ agent:
 skills:
   - name: counter
     skillId: 2288a636-aec7-4a43-8630-5a318c8a04a3
-    version: 1.0.22
+    version: 1.0.23
   - name: territory
     skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
-    version: 1.0.21
+    version: 1.0.22
 webhooks: []
 jobs: []
 preprocessors:
   - name: email-roster
-    preprocessorId: ''
-    version: 1.0.0
+    preprocessorId: preprocessor_60a0010a-814a-41db-bfcb-54f20114c650
+    version: 1.0.1
 postprocessors: []
 mcpServers: []
 backup:
-  activeVersion: 22
-  lastHash: 830da99a9239607ff29db293b124159d7e0376843d8bee493488b948683ade7a
-  lastPushedAt: '2026-09-22T09:30:36.392Z'
+  activeVersion: 24
+  lastHash: 29e81dddc3e15d9b463a1e51a6aa330f413161e8a255c81fc4a1798d9359ca0c
+  lastPushedAt: '2026-09-23T12:49:16.068Z'
 workflows: []

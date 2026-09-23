@@ -19,9 +19,17 @@ export async function sendOrderMail(orderId: string): Promise<{ chemist?: string
     const e = m?.[who];
     if (!e?.to) continue;
     try {
-      await Channels.email.send({ to: { email: e.to }, subject: e.subject, html: e.html });
-      sent[who] = e.to;
-    } catch { /* left unsent; the reply will not claim it went */ }
+      const r = await Channels.email.send({ to: { email: e.to }, subject: e.subject, html: e.html });
+      // Accepted is not arrived. Wait a moment for the first receipt, log both,
+      // and only claim the email went if nothing has already reported it failed.
+      await new Promise((ok) => setTimeout(ok, 2500));
+      const later = await Channels.getStatus(r.deliveryId).catch(() => null);
+      console.log(`order-mail ${who} → ${e.to}: sent as ${r.status}, now ${later?.status ?? 'unknown'}`,
+                  later?.error ? JSON.stringify(later.error) : '');
+      if (r.status !== 'failed' && later?.status !== 'failed') sent[who] = e.to;
+    } catch (err) {
+      console.log(`order-mail ${who} → ${e.to}: not sent`, String(err));
+    }
   }
   return sent;
 }
