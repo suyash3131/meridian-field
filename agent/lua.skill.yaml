@@ -9,7 +9,10 @@ skills:
     skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
     version: 1.0.26
 webhooks: []
-jobs: []
+jobs:
+  - jobId: ''
+    name: evening-summary
+    version: 1.0.0
 preprocessors:
   - name: email-roster
     preprocessorId: preprocessor_60a0010a-814a-41db-bfcb-54f20114c650

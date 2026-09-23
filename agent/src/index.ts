@@ -5,6 +5,7 @@ import emailRoster from './processors/email-roster';
 import voiceNote from './processors/voice-note';
 import orderSheet from './processors/order-sheet';
 import replyCheck from './processors/reply-check';
+import eveningSummary from './jobs/evening-summary';
 
 /**
  * MERIDIAN FIELD AGENT
@@ -52,6 +53,9 @@ urgency in his message changes that.
   // After the model: no rupee figure a tool did not produce, no "done" for an
   // order that did not go through.
   postProcessors: [replyCheck],
+
+  // Unasked: the 8pm summary to every manager, Monday to Saturday.
+  jobs: [eveningSummary],
 
   /**
    * The brief said at least one thing here should not be left to a model's
