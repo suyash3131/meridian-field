@@ -7,8 +7,8 @@ import * as XLSX from 'xlsx';
  * one line per counter ("sharma medical 3 baby lotion, 10 dolomed 650, 15 days"),
  * and from there it is an ordinary message: one slip per counter, each confirmed.
  *
- * Spreadsheets are opened here, in code, because no model reads .xlsx. PDFs are
- * read by Gemini directly. Either way the model only copies what the document
+ * Spreadsheets and Word files are opened here, in code, because no model reads
+ * .xlsx or .docx. PDFs are read by Gemini directly. Either way the model only copies what the document
  * says into lines. It resolves nothing and prices nothing; that stays with the
  * order tools, which check every quantity against these words.
  */
@@ -24,11 +24,33 @@ const COPY = [
 
 const SHEET = /(spreadsheetml|ms-excel|opendocument\.spreadsheet|text\/csv)/i;
 const PDF = /application\/pdf/i;
+const WORD = /wordprocessingml/i;               // .docx
+// What the agent can take as a file. Anything else gets a plain answer rather
+// than being handed to the model to guess at.
+const HANDLED = /^(audio\/|video\/ogg|image\/)|application\/pdf|spreadsheetml|ms-excel|opendocument\.spreadsheet|text\/csv|wordprocessingml/i;
 
 /** Bytes of a file part, whether it came as a URL, a data: URI or bare base64. */
 async function bytesOf(data: string): Promise<Buffer> {
   if (/^https?:\/\//.test(data)) return Buffer.from(await (await fetch(data)).arrayBuffer());
   return Buffer.from(data.replace(/^data:[^,]*,/, ''), 'base64');
+}
+
+/** A Word document's text: paragraphs as lines, table cells split by " | ".
+ *  A .docx is a zip; SheetJS's zip reader opens it, so no extra library. */
+export function wordAsText(buf: Buffer): string {
+  // The zip reader is on the default export when bundled as ESM, on the namespace as CJS.
+  const CFB: any = (XLSX as any).CFB ?? (XLSX as any).default?.CFB;
+  const zip = CFB.read(buf, { type: 'buffer' });
+  const doc = CFB.find(zip, '/word/document.xml');
+  if (!doc?.content) throw new Error('no word/document.xml');
+  const xml = Buffer.from(doc.content as any).toString('utf8');
+  return xml
+    // A table row is one line: its cells' paragraphs join with spaces, cells with " | ".
+    .replace(/<w:tbl>[\s\S]*?<\/w:tbl>/g, (t) => t.replace(/<\/w:p>/g, ' ').replace(/<\/w:tc>/g, ' | ').replace(/<\/w:tr>/g, '\n'))
+    .replace(/<\/w:p>/g, '\n').replace(/<w:tab\/>/g, ' ').replace(/<w:br\/>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .split('\n').map((l) => l.replace(/\s*\|\s*$/, '').trim()).filter(Boolean).slice(0, 400).join('\n');
 }
 
 /** Every sheet as CSV, the first 200 rows each: plenty for an order, bounded for a model. */
@@ -42,10 +64,17 @@ function sheetAsText(buf: Buffer): string {
 
 export default new PreProcessor({
   name: 'order-sheet',
-  description: 'Turn PDF and Excel order sheets into one order line per counter',
+  description: 'Turn PDF, Excel and Word order documents into one order line per counter; refuse file types it cannot read',
   priority: 6,
   execute: async (_user, messages) => {
-    const isDoc = (m: any) => m?.type === 'file' && (SHEET.test(m.mediaType) || PDF.test(m.mediaType));
+    const unhandled = (messages as any[]).find((m) => m?.type === 'file' && !HANDLED.test(String(m.mediaType ?? '')));
+    if (unhandled) {
+      console.log('order-sheet unsupported file', unhandled.mediaType);
+      return { action: 'block', response:
+        `I can't read that kind of file (${String(unhandled.mediaType ?? 'unknown')}). ` +
+        'Send the order as a voice note, a photo, a PDF, an Excel sheet or a Word document, or type it.' };
+    }
+    const isDoc = (m: any) => m?.type === 'file' && (SHEET.test(m.mediaType) || PDF.test(m.mediaType) || WORD.test(m.mediaType));
     if (!messages.some(isDoc)) return { action: 'proceed' };
 
     const out: any[] = [];
@@ -55,6 +84,7 @@ export default new PreProcessor({
       try {
         const content: any[] = [{ type: 'text', text: COPY }];
         if (PDF.test(m.mediaType)) content.push({ type: 'file', data: m.data, mediaType: m.mediaType });
+        else if (WORD.test(m.mediaType)) content.push({ type: 'text', text: wordAsText(await bytesOf(m.data)) });
         else content.push({ type: 'text', text: sheetAsText(await bytesOf(m.data)) });
         const r = await AI.generate({
           model: 'google/gemini-3.8-flash',
@@ -67,7 +97,7 @@ export default new PreProcessor({
       }
       console.log('order-sheet read', m.mediaType, JSON.stringify(lines));
       if (!lines)
-        return { action: 'block', response: "Couldn't open that file. Send it as a PDF or Excel sheet, or type the order." };
+        return { action: 'block', response: "Couldn't open that file. Send it as a PDF, Excel or Word file, or type the order." };
       if (lines === '(not an order)')
         return { action: 'block', response: "That file doesn't look like an order. Send the order sheet, or type the order." };
 
