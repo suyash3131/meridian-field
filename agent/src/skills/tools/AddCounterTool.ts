@@ -2,7 +2,7 @@ import { LuaTool, User } from 'lua-cli';
 import { z } from 'zod';
 import { get, currentManager } from '../../lib/api';
 import { noteShown } from '../../lib/guard';
-import { buttons } from '../../lib/rich';
+import { buttons, onEmail } from '../../lib/rich';
 
 /**
  * A manager adds a counter by chat: "add Krishna Medical, Karol Bagh, limit 25k".
@@ -40,7 +40,11 @@ export default class AddCounterTool implements LuaTool {
       // Exact search for the shop by name; typo-tolerant only for the area.
       const strict = q === `${input.name}, ${input.area}` ? '&strict=1' : '';
       pin = await get<any>(`/api/manager/geocode?region=${region}${strict}&q=${encodeURIComponent(q)}`).catch(() => null);
-      if (pin?.lat) { pin.from = q === input.place ? (pin.source === 'map search' ? 'the address you gave' : 'your link') : q === input.area ? `the centre of ${input.area}` : 'a map search'; break; }
+      if (pin?.lat) {
+        pin.from = q === input.place ? (pin.source === 'map search' ? 'the address you gave' : 'your link') : q === input.area ? `the centre of ${input.area}` : 'a map search';
+        if (q === input.area) pin.exact = false;
+        break;
+      }
     }
     if (!pin?.lat)
       return { sendExactly: `I couldn't find "${input.area}" on the map. Send the shop's location (📎 → Location) or its Google Maps link.`,
@@ -51,28 +55,42 @@ export default class AddCounterTool implements LuaTool {
     const core = (s: string) => s.toLowerCase().replace(/\b(chemists?|medicals?|medicos?|stores?|pharmacy|pharma|agency|drugs?)\b/g, '').trim();
     const near = outlets.find((o) => core(o.name) && core(o.name) === core(input.name) && metres(o.lat, o.lng, pin.lat, pin.lng) < 1500);
 
+    const name = tidy(input.name), area = tidy(input.area);
     const limit = input.creditLimitRupees ?? 25000;
     const limitText = '₹' + limit.toLocaleString('en-IN');
     await noteShown([limitText]);   // the manager's own figure, echoed back, not computed
     const user = await User.get();
     await user?.patch({ set: { pendingSetup: {
       kind: 'counter', at: new Date().toISOString(),
-      data: { name: input.name.trim(), area: input.area.trim(), region, lat: pin.lat, lng: pin.lng,
+      data: { name, area, region, lat: pin.lat, lng: pin.lng,
               creditLimitRupees: limit, email: input.email ?? null, phone: input.phone ?? null },
     } } } as any);
 
     const map = `https://www.google.com/maps?q=${pin.lat.toFixed(5)},${pin.lng.toFixed(5)}`;
+    // Free map search knows roads and localities, rarely a small shop. When the
+    // pin is only the road or the area, say so plainly and make fixing it one step.
+    const found = pin.label ? String(pin.label).split(',').slice(0, 2).join(',').trim() : '';
+    const where = pin.exact
+      ? `📍 ${found ? `Found on the map: ${found}` : `Pin from ${pin.from}`}`
+      : `📍 Approximate pin: ${pin.from.startsWith('the centre') ? pin.from : pin.kind === 'road' && found ? `on ${found}` : found ? `near ${found}` : pin.from}, not at the shop itself. The map doesn't list this shop.`;
+    const how = pin.exact ? '' : '\n\nFor the exact spot, send the shop\'s location (📎 → Location) or its Google Maps link. Or save it now and fix the pin later.';
     return {
       sendExactly:
         (near ? `⚠ ${near.name}, ${near.area} is already on file nearby (${near.id}). Same shop?\n\n` : '') +
-        `Add this counter?\n\n*${input.name.trim()}*, ${input.area.trim()} (${region})\nCredit limit: ${limitText}` +
+        `**Add this counter?**\n\n**${name}** · ${area} · ${region}\nCredit limit ${limitText}` +
         (input.email ? `\nChemist email: ${input.email}` : '') + (input.phone ? `\nChemist WhatsApp: ${input.phone}` : '') +
-        `\n📍 ${map}\n(${pin.label ? `found: ${String(pin.label).split(',').slice(0, 2).join(',')}` : `pin from ${pin.from}`})` +
-        `\n\nReply *yes* to save. If the pin is wrong, send the shop's location or Google Maps link.` +
-        buttons(['Yes, add it', 'No']),
-      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On yes, call confirm_setup.',
+        `\n\n${where}\n${map}${how}` +
+        (onEmail() ? '\n\nReply *yes* to save or *no* to drop it.' : '') +
+        buttons(pin.exact ? ['Yes, add it', 'No'] : ['Save with this pin', 'Send exact pin', 'Cancel']),
+      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On yes / save / no / cancel / "send exact pin", call confirm_setup.',
     };
   }
+}
+
+/** "city chemist" → "City Chemist"; a name typed with capitals is kept as typed. */
+function tidy(s: string): string {
+  const t = s.trim().replace(/\s+/g, ' ');
+  return t === t.toLowerCase() ? t.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : t;
 }
 
 function metres(aLat: number, aLng: number, bLat: number, bLng: number) {

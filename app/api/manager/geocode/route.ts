@@ -20,9 +20,9 @@ export async function GET(req: Request) {
   if (!pin) {
     const link = text.match(/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.[a-z.]+|www\.google\.[a-z.]+\/maps)\S*/i)?.[0];
     if (link) pin = await followLink(link);
-    if (link && pin) return NextResponse.json({ ...pin, source: 'maps link', label: null });
+    if (link && pin) return NextResponse.json({ ...pin, source: 'maps link', label: null, exact: true });
   }
-  if (pin) return NextResponse.json({ ...pin, source: 'coordinates', label: null });
+  if (pin) return NextResponse.json({ ...pin, source: 'coordinates', label: null, exact: true });
 
   // Near where this manager's counters are: Delhi for North, Bengaluru for South.
   const near = u.searchParams.get('region') === 'South' ? { lat: 12.936, lng: 77.609, city: 'Bengaluru' }
@@ -35,7 +35,10 @@ export async function GET(req: Request) {
   }).catch(() => null);
   const hit = r?.ok ? (await r.json().catch(() => []))[0] : null;
   if (hit && inIndia(Number(hit.lat), Number(hit.lon)))
-    return NextResponse.json({ lat: Number(hit.lat), lng: Number(hit.lon), source: 'map search', label: hit.display_name });
+    return NextResponse.json({ lat: Number(hit.lat), lng: Number(hit.lon), source: 'map search', label: hit.display_name,
+      // Only a shop or pharmacy found by name is the place itself. A road or a
+      // locality is where the shop is near, and is said to be so.
+      exact: PLACE.has(hit.category), kind: hit.category === 'highway' ? 'road' : 'area' });
 
   // 4. Typed in a hurry ("Rajendr nagar"): Photon, OpenStreetMap's typo-tolerant
   //    search, biased toward the manager's own city. Only for an area: fuzzy on a
@@ -48,7 +51,8 @@ export async function GET(req: Request) {
   const f = ph?.ok ? (await ph.json().catch(() => ({})))?.features?.[0] : null;
   const [lng, lat] = f?.geometry?.coordinates ?? [];
   if (f && inIndia(lat, lng))
-    return NextResponse.json({ lat, lng, source: 'map search',
+    return NextResponse.json({ lat, lng, source: 'map search', exact: PLACE.has(f.properties?.osm_key),
+      kind: f.properties?.osm_key === 'highway' ? 'road' : 'area',
       label: [f.properties?.name, f.properties?.district ?? f.properties?.city ?? near.city].filter(Boolean).join(', ') });
   return NextResponse.json({ error: `could not find "${text}" on the map` }, { status: 404 });
 }
@@ -76,5 +80,7 @@ async function followLink(url: string) {
   }
   return null;
 }
+
+const PLACE = new Set(['amenity', 'shop', 'healthcare']);
 
 const inIndia = (lat: number, lng: number) => lat > 6 && lat < 37 && lng > 68 && lng < 98;

@@ -2,23 +2,24 @@ import { LuaTool, User } from 'lua-cli';
 import { z } from 'zod';
 import { get, rs, currentManager } from '../../lib/api';
 import { noteShown } from '../../lib/guard';
-import { waiting, groupList, itemList } from '../../lib/decisions';
+import { waiting, overview, shopCard, oneCard, short } from '../../lib/decisions';
 
 /**
- * What is stopped, waiting on this manager: one line per shop (six holds at
- * one counter are one decision), or, for "show each", that shop's requests
- * one by one. What was shown is saved on the conversation, so "approve 2"
- * later means the second line this manager saw, decided in code.
+ * What is stopped, waiting on this manager: a summary of the shops, one shop's
+ * card (tap a shop), or that shop's requests one at a time ("One by one").
+ * What was shown is saved on the conversation, so "approve" or "approve 2"
+ * later means what this manager was looking at, decided in code.
  */
 export default class PendingApprovalsTool implements LuaTool {
   name = 'pending_approvals';
   description =
     'List what is waiting on this manager: orders held at a credit limit, changes and better prices reps asked for. ' +
-    'Use it when a manager asks what needs them, what is stuck, on hold or waiting, and when they tap "Show each" ' +
-    '(pass eachFor with the shop).';
+    'Use it when a manager asks what needs them, what is stuck, on hold or waiting; when they tap or name a shop ' +
+    'from that list (pass shop); and when they tap "One by one" (pass oneByOne).';
 
   inputSchema = z.object({
-    eachFor: z.string().optional().describe('Only for "show each": the shop whose requests to list one by one.'),
+    shop: z.string().optional().describe('A shop they tapped or named from the list, e.g. "Sharma (3)" → "Sharma".'),
+    oneByOne: z.boolean().optional().describe('True when they ask to go one by one / see each order.'),
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
@@ -39,26 +40,29 @@ export default class PendingApprovalsTool implements LuaTool {
     }
 
     const { groups, pending } = await waiting(mgr.id);
-    const user = await User.get();
+    const user: any = await User.get();
+    const said = String(user?.lastText ?? '');
+    const done = (text: string) => ({ sendExactly: text,
+      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject / skip, call ' +
+                'decide_approval. On a shop name, call pending_approvals with shop. On "One by one", call it with oneByOne.' });
     if (!pending.length) {
-      await user?.patch({ set: { lastView: null } } as any);
-      return { sendExactly: 'Nothing is waiting on you. ✓', nextStep: 'Send sendExactly word for word and stop.' };
+      await user?.patch({ set: { lastView: null } });
+      return done('Nothing is waiting on you. ✓');
     }
 
-    if (input.eachFor || groups.length === 1 && /show each|one by one|each|alag/i.test(String((user as any)?.lastText ?? ''))) {
-      const want = (input.eachFor ?? '').toLowerCase();
-      const g = groups.find((x) => want && String(x.outlet).toLowerCase().includes(want.split(' ')[0])) ?? groups[0];
-      const items = pending.filter((p) => g.ids.includes(p.id));
-      await user?.patch({ set: { lastView: { kind: 'items', ids: items.map((p) => p.id) } } } as any);
-      return { sendExactly: itemList(items),
-               nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject, call decide_approval.' };
-    }
+    // Which shop: the one named, else the one they were just looking at, else the only one.
+    const want = (input.shop ?? '').toLowerCase().replace(/\(\d+\)/, '').trim();
+    const view = user?.lastView;
+    const g = (want && groups.find((x) => String(x.outlet).toLowerCase().includes(want.split(' ')[0])
+                                      || short(x.outlet).toLowerCase() === want.split(' ')[0]))
+      ?? (view?.kind === 'items' || view?.kind === 'one' ? groups.find((x) => x.ids.some((id) => view.ids.includes(id))) : undefined)
+      ?? (groups.length === 1 ? groups[0] : undefined);
 
-    await user?.patch({ set: { lastView: { kind: 'groups', groups: groups.map((g) => ({ n: g.n, ids: g.ids })) } } } as any);
-    return {
-      sendExactly: groupList(groups),
-      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject, call decide_approval. ' +
-                'On "Show each", call pending_approvals with eachFor.',
-    };
+    if (g && (input.oneByOne || /one by one|each|ek ek|alag/i.test(said))) {
+      const card = await oneCard(g.ids, 0, pending);
+      if (card) return done(card);
+    }
+    if (g && (want || groups.length === 1)) return done(await shopCard(g, pending));
+    return done(await overview(groups, pending));
   }
 }

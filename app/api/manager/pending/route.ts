@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pendingFor } from '@/lib/approvals';
+import { sql } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,11 +27,22 @@ export async function GET(req: Request) {
     g.oldestDays = Math.max(g.oldestDays, r.age_days);
     if (r.rep && !g.reps.includes(r.rep)) g.reps.push(r.rep);
   }
+  // What is in each held order, so a manager deciding one at a time sees it:
+  // "3 × Dolomed 650, 2 × Baby Lotion 200ml".
+  const orderIds = rows.map((r) => r.subject_id).filter(Boolean);
+  const lines = orderIds.length ? await sql<{ order_id: string; qty: number; name: string }>(
+    `SELECT l.order_id, l.qty, s.name FROM order_lines l JOIN skus s ON s.id = l.sku_id
+      WHERE l.order_id = ANY($1) ORDER BY l.id`, [orderIds]) : [];
+  const itemsOf = (orderId: string) => {
+    const mine = lines.filter((l) => l.order_id === orderId);
+    const shown = mine.slice(0, 3).map((l) => `${l.qty} × ${l.name}`).join(', ');
+    return mine.length > 3 ? `${shown} +${mine.length - 3} more` : shown || null;
+  };
   return NextResponse.json({
     groups,
     pending: rows.map((r, i) => ({
       n: i + 1, id: r.id, kind: r.kind, orderId: r.subject_id, outlet: r.outlet, rep: r.rep,
-      reason: r.reason, valuePaise: r.value_paise == null ? null : Number(r.value_paise), ageDays: r.age_days,
+      reason: r.reason, items: itemsOf(r.subject_id), valuePaise: r.value_paise == null ? null : Number(r.value_paise), ageDays: r.age_days,
     })),
   });
 }
