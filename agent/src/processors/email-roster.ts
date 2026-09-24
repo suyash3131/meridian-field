@@ -127,8 +127,9 @@ export function ownWords(text: string): string {
  *
  *  - A reply: only the new text above the quoted thread, no signature.
  *  - A forward: the note on top AND the forwarded message itself, since a rep
- *    forwarding a chemist's order is sending that order. Only the header block
- *    (From/Date/Subject/To) of the forwarded part is dropped.
+ *    forwarding a chemist's order is sending that order. The header block
+ *    (From/Date/Subject/To) of the forwarded part is dropped, except the
+ *    sender's name, which is often the only place the shop is named.
  *  - Nothing in the body at all: the subject, which is where some people type.
  */
 export function newTextOnly(text: string, subject = ''): string {
@@ -141,7 +142,13 @@ export function newTextOnly(text: string, subject = ''): string {
       out.push('Forwarded:');
       continue;
     }
-    if (forwarded && /^\s*(From|Date|Sent|Subject|To|Cc):\s/i.test(line)) continue; // forwarded header block
+    if (forwarded && /^\s*(From|Date|Sent|Subject|To|Cc):\s/i.test(line)) {
+      // The header block goes, but who sent it stays: a chemist forwarding their
+      // own order often names the shop only there ("From: Sharma Medical Store <…>").
+      const from = line.match(/^\s*From:\s*"?([^"<]+?)"?\s*(<[^>]*>)?\s*$/i)?.[1]?.trim();
+      if (from && !/@/.test(from)) out[out.length - 1] = `Forwarded from ${from}:`;
+      continue;
+    }
     if (!forwarded) {
       if (/^\s*On .+wrote:\s*$/i.test(line)) break;                    // Gmail / Apple Mail
       if (/^-{2,}\s*Original Message\s*-{2,}/i.test(line)) break;     // Outlook
@@ -152,7 +159,7 @@ export function newTextOnly(text: string, subject = ''): string {
     out.push(line);
   }
   const t = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  if (t && t !== 'Forwarded:') return t;
+  if (t && !/^Forwarded( from [^\n]*)?:$/.test(t)) return t;
   const subj = String(subject ?? '').replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, '').trim();
   return subj || String(text ?? '').trim();   // never hand the model an empty message
 }
