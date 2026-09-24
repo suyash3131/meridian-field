@@ -37,11 +37,13 @@ export default class AddCounterTool implements LuaTool {
     const tries = [input.place, `${input.name}, ${input.area}`, input.area].filter(Boolean) as string[];
     let pin: any = null;
     for (const q of tries) {
-      pin = await get<any>(`/api/manager/geocode?q=${encodeURIComponent(q)}`).catch(() => null);
+      // Exact search for the shop by name; typo-tolerant only for the area.
+      const strict = q === `${input.name}, ${input.area}` ? '&strict=1' : '';
+      pin = await get<any>(`/api/manager/geocode?region=${region}${strict}&q=${encodeURIComponent(q)}`).catch(() => null);
       if (pin?.lat) { pin.from = q === input.place ? (pin.source === 'map search' ? 'the address you gave' : 'your link') : q === input.area ? `the centre of ${input.area}` : 'a map search'; break; }
     }
     if (!pin?.lat)
-      return { sendExactly: `I couldn't find ${input.area} on the map. Send the shop's Google Maps link (Share → Copy link in Maps).`,
+      return { sendExactly: `I couldn't find "${input.area}" on the map. Send the shop's location (📎 → Location) or its Google Maps link.`,
                nextStep: 'Send sendExactly word for word and stop.' };
 
     // Already on file, close by? Say so before anything else.
@@ -65,7 +67,8 @@ export default class AddCounterTool implements LuaTool {
         (near ? `⚠ ${near.name}, ${near.area} is already on file nearby (${near.id}). Same shop?\n\n` : '') +
         `Add this counter?\n\n*${input.name.trim()}*, ${input.area.trim()} (${region})\nCredit limit: ${limitText}` +
         (input.email ? `\nChemist email: ${input.email}` : '') + (input.phone ? `\nChemist WhatsApp: ${input.phone}` : '') +
-        `\n📍 ${map}\n(pin from ${pin.from})\n\nReply *yes* to save. If the pin is wrong, send the shop's Google Maps link.` +
+        `\n📍 ${map}\n(${pin.label ? `found: ${String(pin.label).split(',').slice(0, 2).join(',')}` : `pin from ${pin.from}`})` +
+        `\n\nReply *yes* to save. If the pin is wrong, send the shop's location or Google Maps link.` +
         buttons(['Yes, add it', 'No']),
       nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On yes, call confirm_setup.',
     };

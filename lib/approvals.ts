@@ -21,6 +21,7 @@ export type Decision = 'approve' | 'reject';
 export type Pending = {
   id: string; kind: string; subject_id: string; outlet: string | null; rep: string | null;
   rep_id: string | null; reason: string; value_paise: string | null; age_days: number; assigned_to: string | null;
+  outlet_id: string | null; limit_paise: string | null; owed_paise: string | null;
 };
 
 /** What is waiting on this manager, oldest first. The regional head sees all. */
@@ -28,7 +29,10 @@ export async function pendingFor(managerId: string): Promise<Pending[]> {
   return sql<Pending>(
     `SELECT a.id, a.kind, a.subject_id, ou.name AS outlet, r.name AS rep, r.id AS rep_id, a.reason,
             o.total_paise AS value_paise,
-            (current_date - a.created_at::date)::int AS age_days, a.assigned_to
+            (current_date - a.created_at::date)::int AS age_days, a.assigned_to,
+            a.outlet_id, ou.credit_limit_paise AS limit_paise,
+            (SELECT COALESCE(SUM(i.amount_paise), 0) FROM invoices i
+              WHERE i.outlet_id = a.outlet_id AND i.status <> 'paid')::bigint AS owed_paise
        FROM approvals a
        LEFT JOIN outlets ou ON ou.id = a.outlet_id
        LEFT JOIN reps r     ON r.id = a.requested_by

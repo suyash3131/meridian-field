@@ -49,7 +49,7 @@ export default new PreProcessor({
 
     // The web widget: nobody is verified, nothing is bound here.
     if (!isEmail && !phone) {
-      await user.patch({ set: { lastText: rawText.trim(), lastRefs: [] } } as any).catch(() => {});
+      await user.patch({ set: { lastText: ownWords(rawText), lastRefs: [] } } as any).catch(() => {});
       return { action: 'proceed' };
     }
 
@@ -85,7 +85,7 @@ export default new PreProcessor({
     let cleaned = isEmail
       ? messages.map((m: any) => (m.type === 'text' ? { ...m, text: newTextOnly(m.text, mail?.subject ?? '') } : m))
       : messages;
-    const finalText = cleaned.filter((m: any) => m.type === 'text').map((m: any) => String(m.text ?? '')).join('\n').trim();
+    const finalText = ownWords(cleaned.filter((m: any) => m.type === 'text').map((m: any) => String(m.text ?? '')).join('\n'));
 
     // Who this is, in one line in front, for managers and chemists only.
     const who =
@@ -105,6 +105,22 @@ export default new PreProcessor({
     return who || isEmail ? { action: 'proceed', modifiedMessage: cleaned } : { action: 'proceed' };
   },
 });
+
+/**
+ * Only what the person typed or tapped this turn, for tools that act on it.
+ *
+ * A WhatsApp tap or swipe-reply arrives with the message it answers attached
+ * after "::: hide This is a reply to…". That attachment is OUR earlier message,
+ * and it once contained "…or approve all": read as the manager's words, one tap
+ * on "Approve 1" approved six orders. So it is cut off here, before any check.
+ * A tap on a list row, "I selected: *Option 1* (Approve 1)", is its label alone.
+ */
+export function ownWords(text: string): string {
+  let t = String(text ?? '').split(/\n?:::\s*hide\b/i)[0];
+  t = t.replace(/^\s*I selected:\s*\*[^*]*\*\s*\((.+)\)\s*$/im, '$1')   // list row: "(label)"
+       .replace(/^\s*I selected:\s*\*(.+?)\*\s*$/im, '$1');            // reply button: "*label*"
+  return t.trim();
+}
 
 /**
  * What the sender actually wrote, for the model.

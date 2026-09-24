@@ -2,26 +2,27 @@ import { LuaTool, User } from 'lua-cli';
 import { z } from 'zod';
 import { get, rs, currentManager } from '../../lib/api';
 import { noteShown } from '../../lib/guard';
-import { buttons } from '../../lib/rich';
+import { waiting, groupList, itemList } from '../../lib/decisions';
 
 /**
- * What is stopped, waiting on this manager.
- *
- * Numbered, and the numbering is saved on the conversation, so "approve 2"
- * later means exactly the second line this manager was shown, not whatever
- * the model thinks the second one was. On WhatsApp each line gets Approve /
- * Reject buttons.
+ * What is stopped, waiting on this manager: one line per shop (six holds at
+ * one counter are one decision), or, for "show each", that shop's requests
+ * one by one. What was shown is saved on the conversation, so "approve 2"
+ * later means the second line this manager saw, decided in code.
  */
 export default class PendingApprovalsTool implements LuaTool {
   name = 'pending_approvals';
   description =
     'List what is waiting on this manager: orders held at a credit limit, changes and better prices reps asked for. ' +
-    'Use it when a manager asks what needs them, what is stuck, what is on hold, or what is waiting.';
+    'Use it when a manager asks what needs them, what is stuck, on hold or waiting, and when they tap "Show each" ' +
+    '(pass eachFor with the shop).';
 
-  inputSchema = z.object({});
+  inputSchema = z.object({
+    eachFor: z.string().optional().describe('Only for "show each": the shop whose requests to list one by one.'),
+  });
 
-  async execute() {
-    let mgr: { id: string; name: string } | null = null;
+  async execute(input: z.infer<typeof this.inputSchema>) {
+    let mgr: { id: string } | null = null;
     try { mgr = await currentManager(); } catch { /* the unverified dashboard widget */ }
 
     if (!mgr) {
@@ -37,28 +38,27 @@ export default class PendingApprovalsTool implements LuaTool {
       return out;
     }
 
-    const { pending = [] } = await get<{ pending: any[] }>(`/api/manager/pending?managerId=${encodeURIComponent(mgr.id)}`);
+    const { groups, pending } = await waiting(mgr.id);
     const user = await User.get();
-    await user?.patch({ set: { lastPendingList: pending.map((p) => p.id) } } as any);
-    if (!pending.length)
+    if (!pending.length) {
+      await user?.patch({ set: { lastView: null } } as any);
       return { sendExactly: 'Nothing is waiting on you. ✓', nextStep: 'Send sendExactly word for word and stop.' };
+    }
 
-    const what = (p: any) =>
-      p.kind === 'credit_override' ? `${rs(p.valuePaise)} held over its credit limit`
-      : p.kind === 'order_change' ? `change asked: ${p.reason}`
-      : p.kind === 'price_exception' ? `better price asked: ${p.reason}`
-      : p.reason;
-    const shown = pending.slice(0, 8);
-    const lines = shown.map((p) =>
-      `${p.n}. *${p.outlet ?? 'Unknown counter'}*: ${what(p)}, ${p.ageDays ? `${p.ageDays} day${p.ageDays === 1 ? '' : 's'}` : 'today'} (${p.rep ?? 'rep'})`);
-    const more = pending.length > shown.length ? `\n\n…and ${pending.length - shown.length} more.` : '';
-    const one = pending.length === 1;
+    if (input.eachFor || groups.length === 1 && /show each|one by one|each|alag/i.test(String((user as any)?.lastText ?? ''))) {
+      const want = (input.eachFor ?? '').toLowerCase();
+      const g = groups.find((x) => want && String(x.outlet).toLowerCase().includes(want.split(' ')[0])) ?? groups[0];
+      const items = pending.filter((p) => g.ids.includes(p.id));
+      await user?.patch({ set: { lastView: { kind: 'items', ids: items.map((p) => p.id) } } } as any);
+      return { sendExactly: itemList(items),
+               nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject, call decide_approval.' };
+    }
+
+    await user?.patch({ set: { lastView: { kind: 'groups', groups: groups.map((g) => ({ n: g.n, ids: g.ids })) } } } as any);
     return {
-      sendExactly:
-        `${pending.length} waiting on you:\n\n${lines.join('\n')}${more}\n\n` +
-        (one ? 'Reply *approve* or *reject*.' : 'Reply *approve 1*, *reject 2*, or *approve all*.') +
-        buttons(one ? ['Approve', 'Reject'] : shown.slice(0, 5).flatMap((p) => [`Approve ${p.n}`, `Reject ${p.n}`])),
-      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. When they reply approve or reject, call decide_approval.',
+      sendExactly: groupList(groups),
+      nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject, call decide_approval. ' +
+                'On "Show each", call pending_approvals with eachFor.',
     };
   }
 }
