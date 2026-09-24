@@ -47,8 +47,13 @@ export async function GET(req: Request) {
   const owed = await outstanding(o.outlet_id).catch(() => null);
 
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  // "Baby Lotion 200ml" already says 200ml; its pack "200ml bottle" then only adds "bottle".
+  const pack = (l: { name: string; pack_desc: string }) => {
+    const size = l.pack_desc.split(' ')[0];
+    return l.name.toLowerCase().includes(size.toLowerCase()) ? l.pack_desc.slice(size.length).trim() : l.pack_desc;
+  };
   const rows = lines.map((l) =>
-    `<tr><td style="padding:6px 12px 6px 0">${l.qty} × ${esc(l.name)} <span style="color:#667">${esc(l.pack_desc)}</span>` +
+    `<tr><td style="padding:6px 12px 6px 0">${l.qty} × ${esc(l.name)} <span style="color:#667">${esc(pack(l))}</span>` +
     (l.free_qty ? ` <b style="color:#0f766e">+ ${l.free_qty} free</b>` : '') +
     `</td><td style="padding:6px 0;text-align:right">${rs(l.line_total_paise)}</td></tr>`).join('');
   const table =
