@@ -330,6 +330,11 @@ async function main() {
     await client.query('UPDATE reps SET email=$1 WHERE id=$2', [E.DEMO_REP_EMAIL.toLowerCase(), 'R-07']);
   if (E.DEMO_ASM_EMAIL)
     await client.query('UPDATE managers SET email=$1 WHERE id=$2', [E.DEMO_ASM_EMAIL.toLowerCase(), 'M-01']);
+  // Real WhatsApp numbers, the same way: .env.local only, digits with country code.
+  if (E.DEMO_REP_PHONE)
+    await client.query('UPDATE reps SET phone=$1 WHERE id=$2', [E.DEMO_REP_PHONE, 'R-07']);
+  if (E.DEMO_ASM_PHONE)
+    await client.query('UPDATE managers SET phone=$1 WHERE id=$2', [E.DEMO_ASM_PHONE, 'M-01']);
 
   // --------------------------------------------------------------- outlets
   for (const o of outlets) {

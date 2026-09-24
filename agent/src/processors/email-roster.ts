@@ -1,5 +1,5 @@
 import { PreProcessor } from 'lua-cli';
-import { post, senderEmail } from '../lib/api';
+import { post, senderEmail, senderPhone } from '../lib/api';
 
 /**
  * Runs on every message before the model sees it. On email it does two jobs
@@ -15,28 +15,35 @@ import { post, senderEmail } from '../lib/api';
  *    "On Wed, 23 Sept … wrote:" and every earlier line quoted with ">". Left in,
  *    yesterday's order reads as today's. Only the new text goes forward.
  *
- * Every other channel passes straight through.
+ * WhatsApp gets job 1 too, keyed on the phone number, which WhatsApp has
+ * already verified. The web widget has no phone and passes straight through.
  */
 export default new PreProcessor({
   name: 'email-roster',
-  description: 'Identify email senders from the team roster and strip quoted reply history',
+  description: 'Identify email and WhatsApp senders from the team roster and strip quoted email history',
   priority: 10,
   execute: async (user, messages, channel) => {
-    if (channel !== 'email') return { action: 'proceed' };
-
     const u: any = user;
+    const isEmail = channel === 'email';
+    const phone = isEmail ? undefined : senderPhone(u);
+    // What arrived, without the number itself: enough to learn a channel's shape.
+    console.log('roster saw', JSON.stringify({ channel, phoneEnds: phone?.slice(-4) ?? null, bound: u.repId ?? u.managerId ?? null }));
+    if (!isEmail && !phone) return { action: 'proceed' };
+
     if (!u.repId && u.role !== 'manager') {
-      const email = senderEmail(u);
-      const found = email
+      const email = isEmail ? senderEmail(u) : undefined;
+      const found = email || phone
         ? await post<{ id?: string; name?: string; region?: string | null; role?: string; title?: string; verifiedBy?: string }>(
-            '/api/agent/whoami', { email }).catch(() => ({} as any))
+            '/api/agent/whoami', isEmail ? { email } : { phone }).catch(() => ({} as any))
         : {};
       if (!found.id)
         return {
           action: 'block',
-          response:
-            'This address is not on the Meridian field team roster, so I cannot take orders or share ' +
-            'territory numbers from it. Please write from your work email, or ask your ASM to add you.',
+          response: isEmail
+            ? 'This address is not on the Meridian field team roster, so I cannot take orders or share ' +
+              'territory numbers from it. Please write from your work email, or ask your ASM to add you.'
+            : 'This number is not on the Meridian field team roster, so I cannot take orders or share ' +
+              'territory numbers from it. Please ask your ASM to add your number.',
         };
       const set: Record<string, unknown> =
         found.role === 'manager'
@@ -45,6 +52,7 @@ export default new PreProcessor({
       await user.patch({ set: { ...set, identityVerifiedBy: found.verifiedBy, boundAt: new Date().toISOString() } } as any);
     }
 
+    if (!isEmail) return { action: 'proceed' };
     const cleaned = messages.map((m: any) =>
       m.type === 'text' ? { ...m, text: newTextOnly(m.text) } : m);
     return { action: 'proceed', modifiedMessage: cleaned };

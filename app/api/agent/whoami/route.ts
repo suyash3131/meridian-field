@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
         [phone.slice(-10)]
       );
       if (byPhone) return NextResponse.json({ ...byPhone, role: 'rep', verifiedBy: 'phone number' });
+      const mgr = await one<{ id: string; name: string; region: string | null; role: string }>(
+        `SELECT id, name, region, role FROM managers WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1`,
+        [phone.slice(-10)]
+      );
+      if (mgr) return NextResponse.json({ ...mgr, role: 'manager', title: mgr.role, verifiedBy: 'phone number' });
+      // A number WhatsApp vouches for but nobody on the roster owns is turned
+      // away, like an unknown email address. It never falls through to a claim.
+      if (!b.email && !b.claimedRepId)
+        return NextResponse.json({ error: 'this number is not on the team roster' }, { status: 404 });
     }
 
     const email = b.email ? String(b.email).trim().toLowerCase() : '';

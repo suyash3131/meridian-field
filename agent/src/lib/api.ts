@@ -47,7 +47,7 @@ export async function currentRep(claimedRepId?: string): Promise<{ id: string; n
   const bound = (user as any).repId as string | undefined;
   if (bound) return { id: bound, name: ((user as any).repName as string) ?? bound };
 
-  const phone = user._luaProfile?.mobileNumbers?.[0];
+  const phone = senderPhone(user);
   const email = senderEmail(user);
   const found = await post<{ id?: string; name?: string; region?: string; role?: string; verifiedBy?: string; error?: string }>(
     '/api/agent/whoami', { phone, email, claimedRepId }
@@ -75,6 +75,15 @@ export function senderEmail(user: any): string | undefined {
   const e = user?._luaProfile?.emailAddresses?.[0];
   const addr = typeof e === 'string' ? e : e?.address;
   return addr ? String(addr).toLowerCase() : undefined;
+}
+
+/** The number a WhatsApp conversation came from, digits only. Undefined on
+ *  the web widget, which has no phone behind it. */
+export function senderPhone(user: any): string | undefined {
+  const n = user?._luaProfile?.mobileNumbers?.[0];
+  const num = typeof n === 'string' ? n : n?.number ?? n?.mobileNumber;
+  const digits = num ? String(num).replace(/[^\d]/g, '') : '';
+  return digits.length >= 10 ? digits : undefined;
 }
 
 /** ₹ for display only. Every number crossing this boundary is integer paise. */

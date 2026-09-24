@@ -34,7 +34,8 @@ CREATE TABLE managers (
   name        TEXT NOT NULL,
   role        TEXT NOT NULL CHECK (role IN ('asm', 'regional_head')),
   region      TEXT,                       -- NULL for the regional head (sees all)
-  email       TEXT UNIQUE                 -- how the email channel knows who is asking
+  email       TEXT UNIQUE,                -- how the email channel knows who is asking
+  phone       TEXT UNIQUE                 -- how WhatsApp knows who is asking
 );
 
 CREATE TABLE reps (
