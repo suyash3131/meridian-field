@@ -7,9 +7,9 @@ import { remember, type Memory } from '../lib/memory';
  *
  * Live remarks are written as they happen (lib/memory.ts). This rebuilds the
  * history part from the CRM, Sundays at 6am and whenever it is triggered by
- * hand after a demo reset: it clears the collection, then writes the last
- * three weeks of no-order reasons and rival sightings, each searchable by
- * meaning.
+ * hand after a demo reset: it clears what an earlier backfill wrote (never a
+ * live remark), then writes the last three weeks of seeded no-order reasons
+ * and rival sightings, each searchable by meaning.
  */
 export default new LuaJob({
   name: 'memory-backfill',
@@ -18,15 +18,18 @@ export default new LuaJob({
   timeout: 300,
   retry: { maxAttempts: 1, backoffSeconds: 60 },
   execute: async () => {
-    let cleared = 0;
-    for (let guard = 0; guard < 40; guard++) {
-      const page: any = await Data.get('shop_memory', undefined, 1, 50).catch(() => null);
-      const rows: any[] = page?.data ?? [];
-      if (!rows.length) break;
-      for (const e of rows) { await Data.delete('shop_memory', e.id).catch(() => {}); cleared++; }
+    // Collect first, then delete: deleting while paging skips entries.
+    const stale: string[] = [];
+    for (let page = 1; page <= 40; page++) {
+      const r: any = await Data.get('shop_memory', undefined, page, 50).catch(() => null);
+      const rows: any[] = r?.data ?? [];
+      for (const e of rows) if (!(e.data ?? e).live) stale.push(e.id);
+      if (rows.length < 50) break;
     }
+    for (const id of stale) await Data.delete('shop_memory', id).catch(() => {});
+    const cleared = stale.length;
     const { memories = [] } = await get<{ memories: Memory[] }>('/api/agent/memory-source?days=21');
-    for (const m of memories) await remember(m);
+    for (const m of memories) await remember({ ...m, backfilled: true } as any);
     console.log(`memory-backfill: cleared ${cleared}, wrote ${memories.length}`);
     return { cleared, wrote: memories.length };
   },

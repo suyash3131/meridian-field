@@ -33,7 +33,8 @@ export default class NoteCompetitorTool implements LuaTool {
       ourProduct: input.ourProduct, raw: input.words, source: input.fromPhoto ? 'photo' : 'rep',
     });
     if (r.error) return { error: r.error, options: r.options ?? null };
-    await remember({ outletId: r.outletId, outlet: r.outlet, kind: 'competitor', text: input.words, by: rep.name });
+    await remember({ outletId: r.outletId, outlet: r.outlet, kind: 'competitor', text: input.words, by: rep.name,
+                    gist: `rival competitor ${input.brand}${input.offer ? ` offering ${input.offer}` : ''}${input.product ? ` on ${input.product}` : ''}` });
     const spread = r.countersThisWeek > 1 ? ` ${r.brand} is at ${r.countersThisWeek} counters this week.` : '';
     return {
       sendExactly: `Noted: ${r.brand}${input.offer ? ` ${input.offer}` : ''} at ${r.outlet}.${spread} Your ASM sees it tonight. ✓`,

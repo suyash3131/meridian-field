@@ -46,7 +46,8 @@ export default class MessageRepTool implements LuaTool {
         sent = true;
       } catch (e) { console.log('message_rep not sent', String(e)); }
     }
-    await remember({ outletId: s.id, outlet: s.name, kind: 'chemist', text: `${label}: ${words}`, by: `${s.name} (chemist)` });
+    await remember({ outletId: s.id, outlet: s.name, kind: 'chemist', text: `${label}: ${words}`, by: `${s.name} (chemist)`,
+                    gist: `chemist ${label.toLowerCase()}` });
     return {
       sendExactly: sent
         ? `Thank you. I've passed this to ${r.rep}, your Meridian rep${r.asm ? `, and to ${r.asm}` : ''}. ${input.topic === 'order_request' ? 'Your order is not placed until your rep confirms it; you will get a confirmation email with the invoice when it is.' : 'They will get back to you.'}`

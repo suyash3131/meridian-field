@@ -28,7 +28,7 @@ export default class SearchMemoryTool implements LuaTool {
     const shops = new Set(hits.map((h) => h.outlet));
     return {
       sendExactly: `${shops.size} shop${shops.size === 1 ? '' : 's'} on file:\n\n` +
-        hits.map((h) => `• *${h.outlet}*, ${day(h.at)} (${h.by}): "${h.text}"`).join('\n'),
+        hits.map((h) => `• *${h.outlet}*, ${day(h.at)} (${h.by}): "${h.text}"${h.times > 1 ? ` (said on ${h.times} visits)` : ''}`).join('\n'),
       nextStep: 'Send sendExactly word for word and stop. These are remembered remarks, found by meaning; say so if asked how.',
     };
   }

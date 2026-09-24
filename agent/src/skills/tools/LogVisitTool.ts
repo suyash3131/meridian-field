@@ -34,6 +34,7 @@ export default class LogVisitTool implements LuaTool {
     rivalBrand: z.string().optional().describe('For outcome competitor: the rival brand named, e.g. "Cipla".'),
     rivalOffer: z.string().optional().describe('For outcome competitor: the offer as stated, e.g. "10+3".'),
     rivalProduct: z.string().optional().describe('For outcome competitor: their product, if named.'),
+    gist: z.string().optional().describe('The reason in 3 to 10 plain English words, e.g. "old batch near expiry, wants return".'),
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
@@ -54,7 +55,7 @@ export default class LogVisitTool implements LuaTool {
     // rival also becomes a structured sighting the manager can count.
     if (r.outletId) {
       await remember({ outletId: r.outletId, outlet: r.outlet, region: r.region, kind: input.outcome === 'competitor' ? 'competitor' : 'no_order',
-                       text: input.reason, by: rep.name });
+                       text: input.reason, gist: input.gist, by: rep.name });
       if (input.outcome === 'competitor' && input.rivalBrand)
         await post('/api/agent/competitor', { repId: rep.id, outletId: r.outletId, brand: input.rivalBrand,
           offer: input.rivalOffer, product: input.rivalProduct, raw: input.reason }).catch(() => null);

@@ -11,29 +11,42 @@ export const dynamic = 'force-dynamic';
  * searchable by meaning. Live remarks are written there directly as they
  * happen; this only fills the memory for the history that predates it.
  */
+/**
+ * English gists for the seed's Hinglish remarks, so an English question finds
+ * them by meaning (see the gist note in agent/src/lib/memory.ts). Live remarks
+ * get theirs from the model when they are recorded.
+ */
+const GIST: [RegExp, string][] = [
+  [/stock bhara/i, 'shelf is full, enough stock, no need to order'],
+  [/shutter down|shop closed/i, 'shop was closed'],
+  [/owner not there/i, 'owner absent, staff cannot place orders'],
+  [/payment pending/i, 'payment pending, owes money'],
+  [/purana batch|expiry/i, 'old batch near expiry, complaint about expiry'],
+  [/4 baje/i, 'owner only available after 4pm, timing preference'],
+  [/seal tooti|complaint/i, 'customer complaint, damaged product packaging'],
+  [/delivery late/i, 'late delivery complaint, unhappy'],
+  [/cipla|mankind|himalaya|competitor|rival/i, 'rival competitor brand offer or scheme'],
+];
+
 export async function GET(req: Request) {
   const days = Math.min(60, Math.max(1, Number(new URL(req.url).searchParams.get('days') ?? 21)));
   const rows = await sql<{ outlet_id: string; outlet: string; region: string; kind: string; text: string; by: string | null; at: string }>(
-    `SELECT * FROM (
-       SELECT v.outlet_id, ou.name AS outlet, ou.region,
-              CASE WHEN c.id IS NOT NULL THEN 'competitor' ELSE 'no_order' END AS kind,
-              v.no_order_reason AS text, r.name AS by, v.occurred_at AS at
-         FROM visits v
-         JOIN outlets ou ON ou.id = v.outlet_id
-         LEFT JOIN reps r ON r.id = v.rep_id
-         LEFT JOIN competitor_intel c ON c.id = 'CI-' || v.id
-        WHERE v.no_order_reason IS NOT NULL
-          AND v.occurred_at >= now() - make_interval(days => $1)
-       UNION ALL
-       SELECT c.outlet_id, ou.name, ou.region, 'competitor', c.raw, r.name, c.seen_at
-         FROM competitor_intel c
-         JOIN outlets ou ON ou.id = c.outlet_id
-         LEFT JOIN reps r ON r.id = c.rep_id
-        WHERE c.id NOT LIKE 'CI-V%' AND c.seen_at >= now() - make_interval(days => $1)
-     ) m
-     ORDER BY at DESC LIMIT 250`, [days]);
+    // History only: the seed's visits (ids V-0001…). Anything the live agent
+    // recorded was written to memory as it happened, so it is not repeated here.
+    `SELECT v.outlet_id, ou.name AS outlet, ou.region,
+            CASE WHEN c.id IS NOT NULL THEN 'competitor' ELSE 'no_order' END AS kind,
+            v.no_order_reason AS text, r.name AS by, v.occurred_at AS at
+       FROM visits v
+       JOIN outlets ou ON ou.id = v.outlet_id
+       LEFT JOIN reps r ON r.id = v.rep_id
+       LEFT JOIN competitor_intel c ON c.id = 'CI-' || v.id
+      WHERE v.no_order_reason IS NOT NULL
+        AND v.id ~ '^V-[0-9]+$'
+        AND v.occurred_at >= now() - make_interval(days => $1)
+      ORDER BY v.occurred_at DESC LIMIT 250`, [days]);
   return NextResponse.json({
     memories: rows.map((r) => ({ outletId: r.outlet_id, outlet: r.outlet, region: r.region, kind: r.kind,
-                                 text: r.text, by: r.by ?? 'rep', at: new Date(r.at).toISOString() })),
+                                 text: r.text, gist: GIST.find(([re]) => re.test(r.text))?.[1],
+                                 by: r.by ?? 'rep', at: new Date(r.at).toISOString() })),
   });
 }

@@ -18,13 +18,15 @@ export default class RememberTool implements LuaTool {
   inputSchema = z.object({
     shop: z.string().describe('The counter, as the rep named it.'),
     note: z.string().min(3).describe('The remark, in the rep\'s words.'),
+    gist: z.string().describe('What it means in 3 to 10 plain English words, e.g. "owner only available after 4pm".'),
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
     const rep = await currentRep();
     const r = await get<any>(`/api/agent/outlet?q=${encodeURIComponent(input.shop)}&repId=${encodeURIComponent(rep.id)}`);
     if (r.status !== 'resolved') return { notFound: true, reason: r.reason, options: r.candidates ?? null };
-    await remember({ outletId: r.outlet.id, outlet: r.outlet.name, region: r.outlet.region, kind: 'remark', text: input.note, by: rep.name });
-    return { sendExactly: `Remembered for ${r.outlet.name}. ✓`, nextStep: 'Send sendExactly word for word and stop.' };
+    const ok = await remember({ outletId: r.outlet.id, outlet: r.outlet.name, region: r.outlet.region, kind: 'remark', text: input.note, gist: input.gist, by: rep.name });
+    return { sendExactly: ok ? `Remembered for ${r.outlet.name}. ✓` : `Couldn't save that note just now. Send it again in a minute.`,
+             nextStep: 'Send sendExactly word for word and stop.' };
   }
 }
