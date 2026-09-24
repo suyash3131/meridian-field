@@ -10,7 +10,9 @@ import { buttons } from '../../lib/rich';
  * after the shop, copied to his ASM. The agent never acts on a chemist's
  * request itself (no order placed, no price given, nothing changed), because a
  * chemist cannot authorise any of that. It also goes into the shop's memory,
- * so the rep's next brief there mentions it.
+ * so the rep's next brief there mentions it. Only the part meant for the rep
+ * is passed on ("can you deliver by 11?"), not what the agent already answered
+ * ("what do we owe?"), and only if it is the chemist's own words, checked here.
  */
 export default class MessageRepTool implements LuaTool {
   name = 'message_rep';
@@ -20,6 +22,9 @@ export default class MessageRepTool implements LuaTool {
   inputSchema = z.object({
     topic: z.enum(['order_request', 'complaint', 'delivery', 'price', 'payment', 'other']).describe('What it is about.'),
     shop: z.string().optional().describe('Only if they named one of their shops.'),
+    forRep: z.string().optional().describe(
+      'The part of their message only the rep can handle, copied word for word. Leave out anything you answered ' +
+      'yourself this turn (e.g. what they owe). Omit if the whole message is for the rep.'),
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
@@ -27,7 +32,12 @@ export default class MessageRepTool implements LuaTool {
     if ('ask' in s)
       return { sendExactly: `${s.ask}\n\n${s.options.map((o, i) => `${i + 1}. ${o}`).join('\n')}` + buttons(s.options),
                nextStep: 'Send sendExactly word for word and stop.' };
-    const words = (await thisTurn()).text;
+    // What reaches the rep: the part the model says is for him, but only if it
+    // is really the chemist's own words; otherwise their whole message.
+    const all = (await thisTurn()).text;
+    const flat = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+    const part = String(input.forRep ?? '').trim();
+    const words = part.length >= 8 && flat(all).includes(flat(part)) ? part : all;
     const r = await get<any>(`/api/chemist/relay?outletId=${encodeURIComponent(s.id)}`);
     if (r.error) return { sendExactly: 'Thank you. I could not find your rep just now; Meridian will contact you.', nextStep: 'Send sendExactly word for word and stop.' };
 

@@ -16,7 +16,7 @@ export default class ChemistAccountTool implements LuaTool {
       return { sendExactly: `${s.ask}\n\n${s.options.map((o, i) => `${i + 1}. ${o}`).join('\n')}` + buttons(s.options),
                nextStep: 'Send sendExactly word for word and stop.' };
     const a = await get<any>(`/api/chemist/account?outletId=${encodeURIComponent(s.id)}`);
-    const lines = [`*${a.shop}*: ${rs(a.owedPaise)} outstanding across ${a.openInvoices} invoice${a.openInvoices === 1 ? '' : 's'}.`];
+    const lines = [`**${a.shop}**: ${rs(a.owedPaise)} outstanding across ${a.openInvoices} invoice${a.openInvoices === 1 ? '' : 's'}.`];
     if (a.overduePaise > 0) lines.push(`${rs(a.overduePaise)} of it is past its due date (oldest by ${a.oldestOverdueDays} days).`);
     if (a.nextDue) lines.push(`Next due: ${rs(Number(a.nextDue.amount_paise))} on ${a.nextDue.due}.`);
     if (a.lastOrders?.length)

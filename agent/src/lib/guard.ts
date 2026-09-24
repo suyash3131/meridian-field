@@ -30,22 +30,34 @@ function rupeesOf(body: unknown): string[] {
 }
 
 export async function note(path: string, body: any): Promise<void> {
-  try {
-    const user: any = await User.get();
-    if (!user) return;
-    const placed = path.startsWith('/api/agent/confirm') && !body?.error;
-    const n: TurnNote = { rupees: rupeesOf(body), placed };
-    await user.patch({ set: { turnNotes: [...(user.turnNotes ?? []), n] } });
-  } catch { /* a missing note makes the check stricter, never looser */ }
+  const placed = path.startsWith('/api/agent/confirm') && !body?.error;
+  await addNote({ rupees: rupeesOf(body), placed });
 }
 
 /** For a tool that formats a CRM amount itself from a field not named *Paise
  *  (the pulse's approvals carry "value"): note the ₹ it is about to show. */
 export async function noteShown(shown: unknown): Promise<void> {
+  await addNote({ rupees: rupeesIn(JSON.stringify(shown)), placed: false });
+}
+
+/**
+ * Add one note to the list. The model often calls two tools at once (a
+ * chemist's "can you deliver by 11? and what do we owe?" is two), and two
+ * read-add-write rounds at the same instant keep only one of them: the check
+ * then called the other tool's real ₹ figures invented. So after writing, read
+ * back and, if this note was lost to the other write, add it again.
+ */
+async function addNote(n: TurnNote): Promise<void> {
+  const tag = Math.random().toString(36).slice(2);
+  const mine = { ...n, tag };
   try {
-    const user: any = await User.get();
-    if (!user) return;
-    const n: TurnNote = { rupees: rupeesIn(JSON.stringify(shown)), placed: false };
-    await user.patch({ set: { turnNotes: [...(user.turnNotes ?? []), n] } });
-  } catch { /* stricter, never looser */ }
+    for (let i = 0; i < 4; i++) {
+      const user: any = await User.get();
+      if (!user) return;
+      const notes: any[] = user.turnNotes ?? [];
+      if (notes.some((x) => x?.tag === tag)) return;
+      await user.patch({ set: { turnNotes: [...notes, mine] } });
+      await new Promise((r) => setTimeout(r, 60 + Math.random() * 120));
+    }
+  } catch { /* a missing note makes the check stricter, never looser */ }
 }
