@@ -4,44 +4,44 @@ agent:
 skills:
   - name: counter
     skillId: 2288a636-aec7-4a43-8630-5a318c8a04a3
-    version: 1.0.43
+    version: 1.0.45
   - name: territory
     skillId: b0f51a45-424d-41ba-add3-ddcd681f211a
-    version: 1.0.42
+    version: 1.0.44
   - name: setup
     skillId: 0ff14d24-e96b-40ba-b73f-6bbdc3cc9b15
-    version: 1.0.12
+    version: 1.0.14
   - name: chemist
     skillId: 3e31228b-397b-4378-a12f-33539f4aeb63
-    version: 1.0.12
+    version: 1.0.14
 webhooks: []
 jobs:
   - jobId: 179065b4-7e95-48cf-af47-1f55a7559753
     name: evening-summary
-    version: 1.0.15
+    version: 1.0.17
   - jobId: abb19b73-fad5-4cee-ba16-b7c88b574034
     name: memory-backfill
-    version: 1.0.12
+    version: 1.0.14
 preprocessors:
   - name: email-roster
     preprocessorId: preprocessor_60a0010a-814a-41db-bfcb-54f20114c650
-    version: 1.0.21
+    version: 1.0.23
   - name: voice-note
     preprocessorId: preprocessor_a374d69c-a6d8-44ad-95f8-907b977ae899
-    version: 1.0.18
+    version: 1.0.20
   - name: order-sheet
     preprocessorId: preprocessor_f34f9340-6adb-454d-9bc5-ae0b2ac8720c
-    version: 1.0.17
+    version: 1.0.19
   - name: turn-record
     preprocessorId: preprocessor_85cda0c9-cd2c-46df-a5e8-b5e6d53209b8
-    version: 1.0.12
+    version: 1.0.14
 postprocessors:
   - name: reply-check
     postprocessorId: postprocessor_77d97e40-66db-4a7a-a14d-c76eaa101856
-    version: 1.0.16
+    version: 1.0.18
 mcpServers: []
 backup:
-  activeVersion: 43
-  lastHash: 3af564494a94a97fbb3c8bca3e9392116579b6592b2f81aed4530beab3afd9fe
-  lastPushedAt: '2026-09-24T10:05:25.317Z'
+  activeVersion: 45
+  lastHash: 8094e04ed2a9d59c815f6dd096ffb018206d8304f59b28d5fc93c2b5f487f729
+  lastPushedAt: '2026-09-24T10:22:06.206Z'
 workflows: []

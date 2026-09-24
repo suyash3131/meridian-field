@@ -49,7 +49,7 @@ export default class ConfirmOrderTool implements LuaTool {
         orderId: r.orderId,
         total: rs(r.totalPaise),
         sendExactly: heldText(r.totalPaise, lang, r.outlet) +
-          (mailed.asm ? (lang === 'hi' ? ' ASM को ईमेल भेजा, वे जवाब में approve कर सकते हैं।' : ' Your ASM has it by email and can approve it with a reply.') : ''),
+          (mailed.asm ? (lang === 'hi' ? ' ASM को ईमेल गया।' : ' They have it by email.') : ''),
         nextStep: 'Send sendExactly word for word and stop. Do not offer to override this: you cannot, and neither can the rep.',
       };
 

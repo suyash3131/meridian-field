@@ -130,7 +130,7 @@ export const placedText = (paise: number, lang: Lang, outlet?: string) =>
 export const heldText = (paise: number, lang: Lang, outlet?: string) =>
   lang === 'hi'
     ? `सेव हो गया — ${at(outlet)}${rsOf(paise)}। यह दुकान की क्रेडिट लिमिट से ज़्यादा है, इसलिए मंज़ूरी के लिए ASM के पास गया है। विज़िट दर्ज। आगे बढ़ें।`
-    : `Saved — ${at(outlet)}${rsOf(paise)}. It crosses this counter's credit limit, so it has gone to your ASM for approval. Visit recorded. Move on.`;
+    : `Saved — ${at(outlet)}${rsOf(paise)}. Over its credit limit, so it's with your ASM. Visit recorded.`;
 
 /** He said yes again, and the order had already gone through. */
 export const alreadyText = (paise: number, held: boolean, lang: Lang, outlet?: string) =>
