@@ -79,8 +79,12 @@ export default new PreProcessor({
     }
 
     // References anywhere in the email, quote included, before the quote is cut.
+    // Lua passes only the new words of a reply as text, so the raw email (its
+    // full text and HTML, quote and all) is searched too, and the subject.
+    const payload: any = isEmail ? Lua.request?.webhook?.payload ?? {} : {};
+    const whole = isEmail ? [payload.text, payload.html].filter((x) => typeof x === 'string').join('\n') : '';
     const refs = [...new Set(
-      [...`${mail?.subject ?? ''}\n${rawText}`.matchAll(/\b(ORD-[a-z0-9]+|APR-[a-z0-9]+)\b/gi)].map((m) => m[1].toUpperCase()))];
+      [...`${mail?.subject ?? ''}\n${rawText}\n${whole}`.matchAll(/\b(ORD-[a-z0-9]+|APR-[a-z0-9]+)\b/gi)].map((m) => m[1].toUpperCase()))];
 
     let cleaned = isEmail
       ? messages.map((m: any) => (m.type === 'text' ? { ...m, text: newTextOnly(m.text, mail?.subject ?? '') } : m))

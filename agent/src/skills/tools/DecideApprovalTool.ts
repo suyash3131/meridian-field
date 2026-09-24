@@ -80,7 +80,7 @@ export default class DecideApprovalTool implements LuaTool {
     // "Approve all 6" carries a count, not a line number. "Reject 1 and 2" / "1, 3" pick several.
     const nums = all ? [] : [...said.matchAll(/\b(\d{1,2})\b/g)].map((m) => Number(m[1]));
     let ids: string[] = [];
-    const byRef = pending.filter((p) => turn.refs.includes(p.id) || turn.refs.includes(String(p.orderId).toUpperCase()));
+    const byRef = pending.filter((p) => turn.refs.includes(String(p.id).toUpperCase()) || turn.refs.includes(String(p.orderId).toUpperCase()));
     if (byRef.length) ids = byRef.map((p) => p.id);
     else if (nums.length && view?.kind === 'groups') ids = nums.flatMap((n) => view.groups.find((g: any) => g.n === n)?.ids ?? []);
     else if (nums.length && view?.kind === 'items') ids = nums.map((n) => view.ids[n - 1]).filter(Boolean);

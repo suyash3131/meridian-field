@@ -99,7 +99,7 @@ export async function GET(req: Request) {
   const chemistConfirmation = (): Mail | null => !o.outlet_email ? null : {
     who: 'chemist', to: o.outlet_email,
     cc: o.rep_email ? [o.rep_email] : undefined,
-    subject: `Order confirmed: ${o.outlet}, ${rs(o.total_paise)}`,
+    subject: `Order confirmed: ${o.outlet}, ${rs(o.total_paise)} · ${o.id}`,
     html: wrap(
       `<p>Dear ${esc(o.outlet)},</p><p>Your order with ${esc(o.rep)} is booked. The invoice is attached.</p>${table}` +
       `<p>Credit: ${o.credit_terms_days} days${o.due_on ? `, due <b>${esc(o.due_on)}</b>` : ''}.</p>` +
@@ -120,7 +120,7 @@ export async function GET(req: Request) {
   if (event === 'held' && o.status === 'held_credit' && o.asm_email)
     emails.push({
       who: 'asm', to: o.asm_email,
-      subject: `Held for credit: ${o.outlet}, ${rs(o.total_paise)}`,
+      subject: `Held for credit: ${o.outlet}, ${rs(o.total_paise)} · ${o.id}`,   // the ref rides in the subject: a reply keeps it, the quote may not
       html: wrap(
         `<p>${esc(o.asm ?? '')},</p><p>${esc(o.rep)}'s order at <b>${esc(o.outlet)}</b> (${esc(o.area)}) ` +
         `is over the shop's credit limit, so it is on hold until you decide.</p>${table}` +
