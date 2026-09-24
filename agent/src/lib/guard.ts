@@ -38,3 +38,14 @@ export async function note(path: string, body: any): Promise<void> {
     await user.patch({ set: { turnNotes: [...(user.turnNotes ?? []), n] } });
   } catch { /* a missing note makes the check stricter, never looser */ }
 }
+
+/** For a tool that formats a CRM amount itself from a field not named *Paise
+ *  (the pulse's approvals carry "value"): note the ₹ it is about to show. */
+export async function noteShown(shown: unknown): Promise<void> {
+  try {
+    const user: any = await User.get();
+    if (!user) return;
+    const n: TurnNote = { rupees: rupeesIn(JSON.stringify(shown)), placed: false };
+    await user.patch({ set: { turnNotes: [...(user.turnNotes ?? []), n] } });
+  } catch { /* stricter, never looser */ }
+}

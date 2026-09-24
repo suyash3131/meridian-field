@@ -1,6 +1,7 @@
 import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
 import { get } from '../../lib/api';
+import { noteShown } from '../../lib/guard';
 
 /** What is stopped, waiting on a person. */
 export default class PendingApprovalsTool implements LuaTool {
@@ -13,7 +14,7 @@ export default class PendingApprovalsTool implements LuaTool {
 
   async execute() {
     const p = await get('/api/manager/pulse');
-    return {
+    const out = {
       waiting: (p.approvals ?? []).map((a: any) => ({
         counter: a.outlet, rep: a.rep,
         worth: '₹' + Math.round(Number(a.value) / 100).toLocaleString('en-IN'),
@@ -22,5 +23,8 @@ export default class PendingApprovalsTool implements LuaTool {
       // Stated plainly so the model does not offer to do it.
       note: 'You cannot approve any of these. Say what is waiting and how long, and stop there.',
     };
+    // "value" is paise but not named so; the reply check must still know these came from the CRM.
+    await noteShown(out.waiting);
+    return out;
   }
 }
