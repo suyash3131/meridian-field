@@ -17,12 +17,12 @@ export default new LuaJob({
   timeout: 120,
   retry: { maxAttempts: 2, backoffSeconds: 60 },
   execute: async () => {
-    const { emails = [] } = await get<{ emails: { managerId: string; to: string; subject: string; html: string }[] }>(
+    const { emails = [] } = await get<{ emails: { managerId: string; to: string; subject: string; html: string; text?: string }[] }>(
       '/api/manager/digest');
     const sent: string[] = [];
     for (const e of emails) {
       try {
-        const r = await Channels.email.send({ to: { email: e.to }, subject: e.subject, html: e.html });
+        const r = await Channels.email.send({ to: { email: e.to }, subject: e.subject, html: e.html, text: e.text });
         console.log(`evening-summary ${e.managerId} → ${e.to}: ${r.status}`);
         sent.push(e.managerId);
       } catch (err) {

@@ -10,6 +10,8 @@
  * than guessed at: a wrong translation of a credit decision is worse than an
  * untranslated one.
  */
+import { buttons } from './rich';
+
 export type Lang = 'en' | 'hi';
 
 const rsOf = (paise: number) => '₹' + Math.round(paise / 100).toLocaleString('en-IN');
@@ -114,7 +116,7 @@ export function readBackText(s: any, lang: Lang): string {
     ...(warn ? [warn] : []),
     price,
     hi ? 'कन्फ़र्म करें?' : 'Confirm?',
-  ].join('\n\n');
+  ].join('\n\n') + buttons(hi ? ['हाँ, भेजें', 'नहीं'] : ['Yes, place it', 'No']);
 }
 
 // Every result names the counter: one message can carry orders for two shops,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { one } from '@/lib/db';
+import { one, sql } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
         [phone.slice(-10)]
       );
       if (mgr) return NextResponse.json({ ...mgr, role: 'manager', title: mgr.role, verifiedBy: 'phone number' });
+      const shops = await chemistShops('phone', phone.slice(-10));
+      if (shops.length) return NextResponse.json({ id: shops[0].id, name: shops[0].name, role: 'chemist', shops, verifiedBy: 'phone number' });
       // A number WhatsApp vouches for but nobody on the roster owns is turned
       // away, like an unknown email address. It never falls through to a claim.
       if (!b.email && !b.claimedRepId)
@@ -47,6 +49,10 @@ export async function POST(req: NextRequest) {
       const mgr = await one<{ id: string; name: string; region: string | null; role: string }>(
         `SELECT id, name, region, role FROM managers WHERE lower(email) = $1`, [email]);
       if (mgr) return NextResponse.json({ ...mgr, role: 'manager', title: mgr.role, verifiedBy: 'email address' });
+      // A chemist writing back about their order. They are customers, not
+      // staff: let in to ask about their own shop, never to place or approve.
+      const shops = await chemistShops('email', email);
+      if (shops.length) return NextResponse.json({ id: shops[0].id, name: shops[0].name, role: 'chemist', shops, verifiedBy: 'email address' });
       // An unknown address is never offered the "which rep are you?" route the
       // browser demo has: anyone can type a name into an email.
       return NextResponse.json({ error: 'this address is not on the team roster' }, { status: 404 });
@@ -64,4 +70,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'whoami failed' }, { status: 500 });
   }
+}
+
+/** The counters an address or number belongs to. One inbox can run several shops. */
+function chemistShops(by: 'email' | 'phone', v: string) {
+  return by === 'email'
+    ? sql<{ id: string; name: string; area: string }>(
+        `SELECT id, name, area FROM outlets WHERE lower(email) = $1 ORDER BY name`, [v])
+    : sql<{ id: string; name: string; area: string }>(
+        `SELECT id, name, area FROM outlets WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 ORDER BY name`, [v]);
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { post, rs, repLang } from '../../lib/api';
 import { placedText, heldText, alreadyText, tr } from '../../lib/say';
 import { sendOrderMail } from '../../lib/mail';
+import { reaction, documentBlock } from '../../lib/rich';
 
 /**
  * Commit the order the rep just confirmed.
@@ -39,7 +40,7 @@ export default class ConfirmOrderTool implements LuaTool {
       };
 
     // Only a first confirmation gets here, so each order emails at most once.
-    const mailed = await sendOrderMail(r.orderId);
+    const mailed = await sendOrderMail(r.orderId, r.status === 'held_credit' ? 'held' : 'placed');
 
     if (r.status === 'held_credit')
       return {
@@ -48,7 +49,7 @@ export default class ConfirmOrderTool implements LuaTool {
         orderId: r.orderId,
         total: rs(r.totalPaise),
         sendExactly: heldText(r.totalPaise, lang, r.outlet) +
-          (mailed.asm ? (lang === 'hi' ? ' ASM को ईमेल भेजा।' : ' ASM emailed.') : ''),
+          (mailed.asm ? (lang === 'hi' ? ' ASM को ईमेल भेजा, वे जवाब में approve कर सकते हैं।' : ' Your ASM has it by email and can approve it with a reply.') : ''),
         nextStep: 'Send sendExactly word for word and stop. Do not offer to override this: you cannot, and neither can the rep.',
       };
 
@@ -56,8 +57,11 @@ export default class ConfirmOrderTool implements LuaTool {
       placed: true,
       orderId: r.orderId,
       total: rs(r.totalPaise),
+      // The ✅ lands on his "haan"; the invoice arrives as a file he can forward.
       sendExactly: placedText(r.totalPaise, lang, r.outlet) +
-        (mailed.chemist ? (lang === 'hi' ? ' दुकान को ईमेल से पुष्टि भेजी।' : ' Confirmation emailed to the shop.') : ''),
+        (mailed.chemist ? (lang === 'hi' ? ' दुकान को ईमेल से पुष्टि और इनवॉइस भेजा।' : ' Confirmation and invoice emailed to the shop.') : '') +
+        (mailed.invoiceUrl ? documentBlock(lang === 'hi' ? 'इनवॉइस' : 'Invoice', mailed.invoiceUrl, `Meridian-${r.orderId}.pdf`) : '') +
+        reaction('✅'),
       nextStep: 'Send sendExactly to the rep word for word and stop.',
     };
   }

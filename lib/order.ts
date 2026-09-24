@@ -768,7 +768,7 @@ export async function logVisit(v: {
   repId: string; shopPhrase: string; outcome: 'no_order' | 'stock_note' | 'competitor';
   reason: string; gps?: { lat: number; lng: number }; photoUrl?: string;
   threadId?: string; rawMessage: string;
-}): Promise<{ visitId: string; outlet: string; verification: string; onBeat: boolean }
+}): Promise<{ visitId: string; outlet: string; outletId: string; region: string; verification: string; onBeat: boolean }
           | { error: string; options?: { key: string; label: string }[] }> {
   const weekday = businessWeekday();
   const fix = await lastPosition(v.repId);
@@ -805,7 +805,7 @@ export async function logVisit(v: {
   );
   await logEvent({ repId: v.repId, threadId: v.threadId, event: 'confirmed', visitId });
 
-  return { visitId, outlet: outlet.name, verification, onBeat };
+  return { visitId, outlet: outlet.name, outletId: outlet.id, region: outlet.region, verification, onBeat };
 }
 
 /**

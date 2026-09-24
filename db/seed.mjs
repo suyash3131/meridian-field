@@ -298,11 +298,18 @@ const NO_ORDER_REASONS = [
   'shop closed, shutter down',
   'owner not there, staff cannot order',
   'payment pending bol rahe hain',
+  'Dolomed ka purana batch pada hai, expiry paas hai, pehle woh nikalna hai',
+  'owner sirf shaam 4 baje ke baad milta hai, tab aana',
+  'customer complaint aaya, baby lotion ki seal tooti thi',
+  'delivery late aayi thi pichhli baar, naraz hai',
 ];
+// What reps hear at the counter about rivals. Each also becomes a structured
+// competitor_intel row (brand / product / offer / the Meridian product it hits),
+// the way the agent's note_competitor tool writes them live.
 const COMPETITOR_REASONS = [
-  'Cipla ne offer diya hai, 10+3 de rahe hain',
-  'Cipla rep aaya tha, unka scheme better hai',
-  'competitor ne shelf le liya, upar wala rack',
+  { text: 'Cipla ne offer diya hai, paracetamol pe 10+3 de rahe hain', brand: 'Cipla', product: 'paracetamol 650', offer: '10+3', sku: 'SKU-DOL650-10X10' },
+  { text: 'Mankind rep aaya tha, pain spray 20% off pe de raha hai',   brand: 'Mankind', product: 'pain relief spray', offer: '20% off', sku: 'SKU-SPRAY-50ML' },
+  { text: 'Himalaya baby lotion pe 1+1 chal raha hai, humara nahi utha', brand: 'Himalaya', product: 'baby lotion', offer: '1+1', sku: 'SKU-BLOTION-200' },
 ];
 
 async function main() {
@@ -516,6 +523,8 @@ async function main() {
         const reason = outcome !== 'no_order' ? null
                      : chance(competitorPressure) ? pick(COMPETITOR_REASONS)
                      :                              pick(NO_ORDER_REASONS);
+        const rival = reason && typeof reason === 'object' ? reason : null;
+        const reasonText = rival ? rival.text : reason;
 
         const visitId = newVisit();
         await client.query(
@@ -523,12 +532,17 @@ async function main() {
                                on_beat,beat_seq,out_of_sequence,gps_lat,gps_lng,
                                gps_distance_m,photo_url,verification,verification_note,raw_message)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-          [visitId, outlet.id, r.id, at.toISOString(), outcome, reason,
+          [visitId, outlet.id, r.id, at.toISOString(), outcome, reasonText,
            true, seq + 1, false, gLat, gLng, dist,
            `https://cdn.example.com/visits/${visitId}.jpg`,
            verification,
            verification === 'flagged' ? `location ${dist}m from outlet` : null,
-           reason ?? null]);
+           reasonText ?? null]);
+        if (rival)
+          await client.query(
+            `INSERT INTO competitor_intel (id,outlet_id,rep_id,brand,product,offer,our_sku_id,raw,seen_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            ['CI-' + visitId, outlet.id, r.id, rival.brand, rival.product, rival.offer, rival.sku, rival.text, at.toISOString()]);
 
         // ---- an order ----
         if (outcome === 'order') {
@@ -840,8 +854,7 @@ async function main() {
   checks.push(['Abandoned drafts to measure', aband.n > 0, `${aband.n} abandoned`]);
 
   const [comp] = await q(
-    `SELECT count(*)::int AS n FROM visits v JOIN outlets o ON o.id=v.outlet_id
-      WHERE v.no_order_reason ILIKE '%cipla%' OR v.no_order_reason ILIKE '%competitor%'`);
+    `SELECT count(*)::int AS n FROM competitor_intel`);
   checks.push(['Competitor pressure recorded', comp.n >= 5, `${comp.n} counters mentioned a rival`]);
 
   let failed = 0;

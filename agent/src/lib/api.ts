@@ -1,6 +1,7 @@
 import { User } from 'lua-cli';
 import { type Lang, readBackText, replyIn, tr } from './say';
 import { note } from './guard';
+import { buttons } from './rich';
 
 /**
  * The CRM this agent writes into. Every rule that matters — which counter,
@@ -113,8 +114,8 @@ export function readBack(draftId: string, s: any, lang: Lang = 'en') {
     sendExactly: readBackText(s, lang),
     replyIn: replyIn(lang),
     nextStep:
-      `Send sendExactly to the rep word for word, nothing before or after it, and stop. ` +
-      `When he agrees — yes, ok, haan, thik hai, ha, a tick — call confirm_order with ` +
+      `Send sendExactly to the rep word for word, including the ::: block at the end, nothing before or after it, and stop. ` +
+      `When he agrees — yes, ok, haan, thik hai, ha, a tick, or a tap on "Yes, place it" — call confirm_order with ` +
       `draftId "${draftId}". Do NOT call draft_order again: this order already exists.`,
   };
 }
@@ -122,11 +123,39 @@ export function readBack(draftId: string, s: any, lang: Lang = 'en') {
 export function askText(draftId: string, question: string, options: { key: string; label: string }[], lang: Lang = 'en') {
   return {
     draftId,
-    sendExactly: [tr(question, lang), ...options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)].join('\n'),
+    sendExactly: [tr(question, lang), ...options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)].join('\n') +
+      buttons(options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)),
     optionKeys: options.map((o, i) => ({ number: i + 1, key: o.key })),
     replyIn: replyIn(lang),
     nextStep:
-      'Send sendExactly to the rep word for word and stop. When he replies with a number, ' +
-      'call answer_choice with the matching key from optionKeys.',
+      'Send sendExactly to the rep word for word, including any ::: block, and stop. When he replies ' +
+      'with a number or taps an option ("I selected: *2. …*"), call answer_choice with the matching key from optionKeys.',
   };
+}
+
+/**
+ * The manager asking, from the conversation's verified record: bound by the
+ * roster pre-processor from their email address or WhatsApp number. Never from
+ * a tool argument: "I am Vikram" in a message changes nothing here.
+ */
+export async function currentManager(): Promise<{ id: string; name: string; region: string | null }> {
+  const u: any = await User.get();
+  if (u?.role !== 'manager' || !u.managerId)
+    throw new Error('Only a Meridian manager can do that, and only from their own email or WhatsApp number.');
+  return { id: u.managerId, name: u.managerName ?? u.managerId, region: u.region && u.region !== 'all' ? u.region : null };
+}
+
+/** The chemist writing, and the shops their verified email or number belongs to. */
+export async function currentChemist(): Promise<{ name: string; shops: { id: string; name: string; area?: string }[] }> {
+  const u: any = await User.get();
+  if (u?.role !== 'chemist' || !Array.isArray(u.chemistShops) || !u.chemistShops.length)
+    throw new Error('This is for a shop writing from the email or number Meridian has on file for it.');
+  return { name: u.chemistName ?? u.chemistShops[0].name, shops: u.chemistShops };
+}
+
+/** Exactly what the person sent this turn, as the pre-processors left it, and
+ *  any order or approval references in the email (including its quoted part). */
+export async function thisTurn(): Promise<{ text: string; refs: string[]; channel: string }> {
+  const u: any = await User.get();
+  return { text: String(u?.lastText ?? ''), refs: Array.isArray(u?.lastRefs) ? u.lastRefs : [], channel: String(u?.lastChannel ?? '') };
 }

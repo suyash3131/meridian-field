@@ -2,6 +2,7 @@ import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
 import { post, currentRep, repLang } from '../../lib/api';
 import { notedText, replyIn, tr } from '../../lib/say';
+import { remember } from '../../lib/memory';
 
 /**
  * A counter that gave no order today.
@@ -30,6 +31,9 @@ export default class LogVisitTool implements LuaTool {
       'Never write "no order" alone — that records nothing.'
     ),
     repId: z.string().optional().describe('Only on the first message of a conversation.'),
+    rivalBrand: z.string().optional().describe('For outcome competitor: the rival brand named, e.g. "Cipla".'),
+    rivalOffer: z.string().optional().describe('For outcome competitor: the offer as stated, e.g. "10+3".'),
+    rivalProduct: z.string().optional().describe('For outcome competitor: their product, if named.'),
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
@@ -45,6 +49,16 @@ export default class LogVisitTool implements LuaTool {
     const lang = await repLang();
     if (r.error)
       return { error: tr(r.error, lang), options: r.options ?? null, replyIn: replyIn(lang) };
+
+    // The reason is what the next rep at this counter should know. A named
+    // rival also becomes a structured sighting the manager can count.
+    if (r.outletId) {
+      await remember({ outletId: r.outletId, outlet: r.outlet, region: r.region, kind: input.outcome === 'competitor' ? 'competitor' : 'no_order',
+                       text: input.reason, by: rep.name });
+      if (input.outcome === 'competitor' && input.rivalBrand)
+        await post('/api/agent/competitor', { repId: rep.id, outletId: r.outletId, brand: input.rivalBrand,
+          offer: input.rivalOffer, product: input.rivalProduct, raw: input.reason }).catch(() => null);
+    }
     return {
       recorded: true,
       counter: r.outlet,

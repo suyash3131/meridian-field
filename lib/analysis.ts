@@ -174,16 +174,17 @@ async function collections(region: string | null): Promise<Finding[]> {
 /** Counters that told a rep a rival got there first. */
 async function competitor(region: string | null): Promise<Finding[]> {
   const row = await one<{ this_week: number; last_week: number; examples: string[] }>(
+    // Sightings are structured rows now (brand, product, offer), written by the
+    // agent's note_competitor tool and by the seed. One counter seen twice in a
+    // week is one counter under pressure, not two.
     `SELECT
-       count(*) FILTER (WHERE v.occurred_at >= now() - interval '7 days')::int AS this_week,
-       count(*) FILTER (WHERE v.occurred_at <  now() - interval '7 days'
-                          AND v.occurred_at >= now() - interval '14 days')::int AS last_week,
+       count(DISTINCT c.outlet_id) FILTER (WHERE c.seen_at >= now() - interval '7 days')::int AS this_week,
+       count(DISTINCT c.outlet_id) FILTER (WHERE c.seen_at <  now() - interval '7 days'
+                          AND c.seen_at >= now() - interval '14 days')::int AS last_week,
        COALESCE(ARRAY_AGG(DISTINCT ou.name) FILTER (
-         WHERE v.occurred_at >= now() - interval '7 days'), '{}') AS examples
-     FROM visits v JOIN outlets ou ON ou.id = v.outlet_id
-    WHERE (v.outcome = 'competitor' OR v.no_order_reason ILIKE '%cipla%'
-           OR v.no_order_reason ILIKE '%competitor%')
-      AND ($1::text IS NULL OR ou.region = $1)`,
+         WHERE c.seen_at >= now() - interval '7 days'), '{}') AS examples
+     FROM competitor_intel c JOIN outlets ou ON ou.id = c.outlet_id
+    WHERE ($1::text IS NULL OR ou.region = $1)`,
     [region]
   );
   const now = row?.this_week ?? 0;

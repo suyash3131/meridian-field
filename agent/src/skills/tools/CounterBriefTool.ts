@@ -2,6 +2,7 @@ import { LuaTool } from 'lua-cli';
 import { z } from 'zod';
 import { get, currentRep, repLang } from '../../lib/api';
 import { briefText } from '../../lib/say';
+import { recall } from '../../lib/memory';
 
 /** What a rep should know in the ten seconds before he opens his mouth. */
 export default class CounterBriefTool implements LuaTool {
@@ -25,6 +26,13 @@ export default class CounterBriefTool implements LuaTool {
     if (r.status !== 'resolved')
       return { notFound: true, reason: r.reason, options: r.candidates ?? null };
 
+    // What the team said here before, newest first: the thing a new rep never knows.
+    const past = await recall(r.outlet.id, 2);
+    const day = (iso?: string) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) : '';
+    const remembered = past.length
+      ? '\n' + past.map((m) => `${lang === 'hi' ? 'याद रखें' : 'Remember'} (${day(m.at)}, ${m.by}): "${m.text}"`).join('\n')
+      : '';
+
     return {
       counter: r.outlet.name,
       sendExactly: briefText({
@@ -34,7 +42,7 @@ export default class CounterBriefTool implements LuaTool {
         overduePaise: r.credit.overduePaise,
         nearExpiry: r.nearExpiry ?? [],
         usuallyBuys: r.usuallyBuys?.map((u: any) => u.name) ?? [],
-      }, lang),
+      }, lang) + remembered,
       lastVisitDaysAgo: r.lastVisitDaysAgo,
       nextStep: 'Send sendExactly to the rep word for word and stop.',
     };

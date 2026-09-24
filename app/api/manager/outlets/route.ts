@@ -41,11 +41,18 @@ export async function POST(req: Request) {
   const dupe = await one(`SELECT id FROM outlets WHERE lower(name) = lower($1) AND lower(area) = lower($2)`, [name, area]);
   if (dupe) return bad(`${name}, ${area} is already on file.`);
 
+  // The chemist's own contact, when given: how the agent later recognises them
+  // writing back about an order.
+  const email = b.email ? String(b.email).trim().toLowerCase() : null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('That email address does not look right.');
+  const phone = b.phone ? String(b.phone).replace(/[^\d+]/g, '') : null;
+  if (phone && phone.replace(/\D/g, '').length < 10) return bad('That phone number is too short.');
+
   const id = 'OUT-N' + Date.now().toString(36).slice(-5).toUpperCase();
   await sql(
-    `INSERT INTO outlets (id, name, area, region, lat, lng, credit_limit_paise)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [id, name, area, region, lat, lng, limitRupees * 100]);
+    `INSERT INTO outlets (id, name, area, region, lat, lng, credit_limit_paise, email, phone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [id, name, area, region, lat, lng, limitRupees * 100, email, phone]);
   await sql(
     `INSERT INTO outlet_aliases (outlet_id, alias, source) VALUES ($1, $2, 'seed')
      ON CONFLICT DO NOTHING`, [id, name.toLowerCase()]);

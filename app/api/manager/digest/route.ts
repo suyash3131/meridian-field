@@ -47,6 +47,18 @@ export async function GET() {
         ORDER BY MAX(now() - a.created_at) DESC LIMIT 8`, [m.id, region]);
 
     const a = await answerFor(region);
+
+    // Rivals seen this week, per brand: the counters and the offers reps named.
+    const rivals = await sql<{ brand: string; counters: number; offers: string[]; ours: string[] }>(
+      `SELECT c.brand, count(DISTINCT c.outlet_id)::int AS counters,
+              COALESCE(array_agg(DISTINCT c.offer) FILTER (WHERE c.offer IS NOT NULL), '{}') AS offers,
+              COALESCE(array_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '{}') AS ours
+         FROM competitor_intel c JOIN outlets ou ON ou.id = c.outlet_id LEFT JOIN skus s ON s.id = c.our_sku_id
+        WHERE c.seen_at >= now() - interval '7 days' AND ($1::text IS NULL OR ou.region = $1)
+        GROUP BY c.brand ORDER BY 2 DESC LIMIT 3`, [region]);
+    const rivalLine = (r: { brand: string; counters: number; offers: string[]; ours: string[] }) =>
+      `${r.brand} at ${r.counters} counter${r.counters === 1 ? '' : 's'}` +
+      (r.offers.length ? `, offering ${r.offers.join(', ')}` : '') + (r.ours.length ? ` against our ${r.ours.join(', ')}` : '');
     const KIND: Record<string, string> = {
       credit_override: 'Over credit limit', price_exception: 'Asking for a better price',
       order_change: 'Change to a placed order', return: 'Return',
@@ -72,7 +84,12 @@ export async function GET() {
                (w.n > 1 ? 'Latest: ' : '') + `${esc(w.reason)} ` +
                `<span style="color:#889">(${w.n > 1 ? 'oldest ' : ''}${w.days === 0 ? 'today' : w.days === 1 ? '1 day' : `${w.days} days`})</span>`)).join('')}</ul>`
         : p('Nothing.')) +
-      p(`<span style="color:#667">Decide on Today in the Meridian dashboard, or reply to this email to ask the agent anything.</span>`) +
+      (rivals.length
+        ? `<h3 style="margin:20px 0 8px;font-size:15px">Rivals this week</h3>` +
+          `<ul style="padding-left:18px;margin:0 0 12px">${rivals.map((r) => li(esc(rivalLine(r)))).join('')}</ul>`
+        : '') +
+      p(`<span style="color:#667">Reply to this email to act or ask: <b>what's waiting</b> for the list to approve, ` +
+        `<b>approve all sharma</b>, <b>what are competitors doing</b>, <b>which shops complained about expiry</b>.</span>`) +
       `</div>`;
 
     emails.push({
@@ -80,6 +97,18 @@ export async function GET() {
       to: m.email,
       subject: `8pm · ${scope}: ${a.headline.replace(/^.*? is /, '')}`,
       html,
+      text: [
+        `${m.name.split(' ')[0]}, here is ${scope} at 8pm.`,
+        `TODAY\n${today?.orders ?? 0} orders placed, ${rs(today?.value)}, across ${today?.counters ?? 0} counters.` +
+          (Number(today?.held) ? ` ${today?.held} held for credit.` : ''),
+        `THIS WEEK\n${a.headline}\n` + a.findings.map((f) => `- ${f.headline}`).join('\n') +
+          (a.biggestLever ? `\nFirst thing tomorrow: ${a.biggestLever}` : ''),
+        `WAITING ON YOU\n` + (waiting.length
+          ? waiting.map((w) => `- ${w.outlet ?? ''}: ${(KIND[w.kind] ?? w.kind).toLowerCase()}${w.n > 1 ? `, ${w.n} requests` : ''}. ${w.reason}`).join('\n')
+          : 'Nothing.'),
+        ...(rivals.length ? [`RIVALS THIS WEEK\n` + rivals.map((r) => `- ${rivalLine(r)}`).join('\n')] : []),
+        `Reply to this email to act or ask: "what's waiting", "approve all sharma", "what are competitors doing".`,
+      ].join('\n\n'),
     });
   }
 
