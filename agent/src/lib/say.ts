@@ -10,7 +10,7 @@
  * than guessed at: a wrong translation of a credit decision is worse than an
  * untranslated one.
  */
-import { buttons } from './rich';
+import { buttons, onEmail } from './rich';
 
 export type Lang = 'en' | 'hi';
 
@@ -116,7 +116,35 @@ export function readBackText(s: any, lang: Lang): string {
     ...(warn ? [warn] : []),
     price,
     hi ? 'कन्फ़र्म करें?' : 'Confirm?',
-  ].join('\n\n') + buttons(hi ? ['हाँ, भेजें', 'नहीं'] : ['Yes, place it', 'No']);
+  ].join('\n\n') + buttons(hi ? ['कन्फ़र्म', 'बदलें', 'रद्द करें'] : ['Confirm', 'Change', 'Cancel']);
+}
+
+/**
+ * Why a counter gave no order, as three taps. Free text meant fifty reps wrote
+ * fifty reasons and nobody could count them. A tap is stored as the English
+ * label, whatever language he tapped it in, so the manager's summary can.
+ * He can still type a reason of his own; that is stored as he wrote it.
+ */
+const NO_ORDER = [
+  { en: 'Shop shut', hi: 'दुकान बंद' },
+  { en: 'Owner absent', hi: 'मालिक नहीं थे' },
+  { en: 'Enough stock', hi: 'स्टॉक भरा है' },
+];
+
+export function noOrderAskText(lang: Lang): string {
+  const hi = lang === 'hi';
+  const labels = NO_ORDER.map((r) => (hi ? r.hi : r.en));
+  return choiceText(hi ? 'ऑर्डर क्यों नहीं? एक चुनें, या वजह लिख दें।' : 'Why no order? Tap one, or type the reason.', labels);
+}
+
+/** A tap or a bare number becomes the fixed label; anything else is his own words. */
+export function noOrderReason(said: string): string | null {
+  const t = said.replace(/^I selected:\s*/i, '').replace(/\*/g, '').trim();
+  const n = t.match(/^([1-3])\.?(\s|$)/);
+  if (n) return NO_ORDER[Number(n[1]) - 1].en;
+  const hit = NO_ORDER.find((r) => [r.en, r.hi].some((l) => t.toLowerCase() === l.toLowerCase()));
+  if (hit) return hit.en;
+  return t.length >= 3 ? t : null;
 }
 
 // Every result names the counter: one message can carry orders for two shops,
@@ -178,4 +206,16 @@ export function briefText(b: {
     lines.push(hi ? `आमतौर पर लेते हैं: ${b.usuallyBuys.slice(0, 3).join(', ')}।`
                   : `Usually buys: ${b.usuallyBuys.slice(0, 3).join(', ')}.`);
   return lines.join('\n');
+}
+
+/**
+ * A question with a few fixed answers. On WhatsApp and the widget the answers
+ * are tap buttons alone: with a numbered list above them as well, the model
+ * saw the buttons as a repeat and left them out. Email has no buttons, so
+ * there the answers are numbered for him to reply with.
+ */
+export function choiceText(question: string, labels: string[]): string {
+  return onEmail()
+    ? [question, ...labels.map((l, i) => `${i + 1}. ${l}`)].join('\n')
+    : question + buttons(labels);
 }

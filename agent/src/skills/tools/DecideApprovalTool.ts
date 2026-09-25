@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { post, rs, currentManager, thisTurn } from '../../lib/api';
 import { sendOrderMail } from '../../lib/mail';
 import { buttons, onEmail } from '../../lib/rich';
-import { noteShown } from '../../lib/guard';
+import { noteShown, sent } from '../../lib/guard';
 import { waiting, overview, oneCard, short, type Item } from '../../lib/decisions';
 
 /**
@@ -33,7 +33,7 @@ const REJECT = /\b(reject(ed)?|decline[ds]?|deny|refuse[ds]?|mat karo)\b/i;
 const YES = /^\s*(yes|yeah|yep|haan|han|ha|ok|okay|confirm|sure|done|kar do|👍|✅)\b/i;
 const NO = /^\s*(no|nope|nahi|nahin|cancel|stop|mat)\b/i;
 const SKIP = /\b(skip|later|next|baad (me|mein)|chhodo|chodo)\b/i;
-const say = (text: string) => ({ sendExactly: text, nextStep: 'Send sendExactly word for word, including any ::: block, and stop.' });
+const say = (text: string) => sent({ sendExactly: text, nextStep: 'Send sendExactly word for word, including any ::: block, and stop.' });
 
 export default class DecideApprovalTool implements LuaTool {
   name = 'decide_approval';

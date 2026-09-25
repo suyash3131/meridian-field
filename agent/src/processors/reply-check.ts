@@ -27,6 +27,32 @@ export function check(response: string, message: string, notes: TurnNote[]) {
   return { ok: !invented.length && !falseClaim, invented, falseClaim };
 }
 
+/**
+ * A tool's tap buttons, restored if the model left them out. It has sent the
+ * choices as a plain or numbered list instead, which on WhatsApp is only text
+ * he has to type back. Restored only when the reply is exactly that tool's
+ * text with the buttons flattened into a list: a note left over from an
+ * earlier turn, or two slips in one reply, never match that, so nothing the
+ * tools did not write this turn can come back.
+ */
+const flat = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}₹]/gu, '');
+
+export function withButtons(response: string, notes: TurnNote[]): string {
+  if (response.includes('::: actions')) return response;
+  const said = flat(response);
+  const match = notes.map((n) => n.buttons).filter((b): b is string => {
+    if (!b) return false;
+    const [body, block] = b.split('::: actions');
+    const labels = (block ?? '').split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2)).join('');
+    if (!said.startsWith(flat(body))) return false;
+    const rest = said.slice(flat(body).length).replace(/\d/g, '');
+    return rest === '' || rest === flat(labels).replace(/\d/g, '');
+  });
+  if (!match.length) return response;
+  console.log('reply-check restored buttons', JSON.stringify({ response }));
+  return match[match.length - 1];
+}
+
 export default new PostProcessor({
   name: 'reply-check',
   description: 'Replace replies that invent rupee figures or claim an order that did not happen',
@@ -37,7 +63,7 @@ export default new PostProcessor({
     const r = check(response, message, notes);
     await u?.patch?.({ set: { turnNotes: [] } }).catch(() => {});
 
-    if (r.ok) return { modifiedResponse: response };
+    if (r.ok) return { modifiedResponse: withButtons(response, notes) };
 
     console.log('reply-check replaced a reply', JSON.stringify({ invented: r.invented, falseClaim: r.falseClaim, response }));
     return { modifiedResponse: "Let me check that again. Please send it once more." };

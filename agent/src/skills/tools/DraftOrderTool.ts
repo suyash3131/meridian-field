@@ -1,6 +1,7 @@
 import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
 import { post, currentRep, readBack, askText, repLang } from '../../lib/api';
+import { sent } from '../../lib/guard';
 import { tr, replyIn } from '../../lib/say';
 import { reconcile } from '../../lib/reading';
 
@@ -60,10 +61,10 @@ export default class DraftOrderTool implements LuaTool {
 
     // Everything below is formatting. No number is recomputed here.
     const lang = await repLang();
-    if (result.kind === 'draft') return readBack(result.draftId, result.summary, lang);
+    if (result.kind === 'draft') return sent(readBack(result.draftId, result.summary, lang));
 
     if (result.kind === 'question' || result.kind === 'duplicate')
-      return askText(result.draftId, result.question, result.options, lang);
+      return sent(askText(result.draftId, result.question, result.options, lang));
 
     if (result.kind === 'parked')
       return { parked: true, sendExactly: tr(result.message, lang) };

@@ -1,7 +1,7 @@
 import { LuaTool, User } from 'lua-cli';
 import { z } from 'zod';
 import { get, rs, currentManager } from '../../lib/api';
-import { noteShown } from '../../lib/guard';
+import { noteShown, sent } from '../../lib/guard';
 import { waiting, overview, shopCard, oneCard, short } from '../../lib/decisions';
 
 /**
@@ -42,7 +42,7 @@ export default class PendingApprovalsTool implements LuaTool {
     const { groups, pending } = await waiting(mgr.id);
     const user: any = await User.get();
     const said = String(user?.lastText ?? '');
-    const done = (text: string) => ({ sendExactly: text,
+    const done = (text: string) => sent({ sendExactly: text,
       nextStep: 'Send sendExactly word for word, including the ::: block, and stop. On approve / reject / skip, call ' +
                 'decide_approval. On a shop name, call pending_approvals with shop. On "One by one", call it with oneByOne.' });
     if (!pending.length) {

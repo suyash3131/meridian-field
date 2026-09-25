@@ -9,7 +9,7 @@ import { User } from 'lua-cli';
  * confirmed order. The reply-check post-processor reads the notes after the
  * model has written its reply, and clears them for the next turn.
  */
-export type TurnNote = { rupees: string[]; placed: boolean };
+export type TurnNote = { rupees: string[]; placed: boolean; buttons?: string };
 
 /** Every ₹ figure in a piece of text, commas removed: "₹1,42,656" → "142656". */
 export function rupeesIn(text: string): string[] {
@@ -38,6 +38,18 @@ export async function note(path: string, body: any): Promise<void> {
  *  (the pulse's approvals carry "value"): note the ₹ it is about to show. */
 export async function noteShown(shown: unknown): Promise<void> {
   await addNote({ rupees: rupeesIn(JSON.stringify(shown)), placed: false });
+}
+
+/**
+ * A tool reply that carries tap buttons, noted so the reply check can put it
+ * back if the model drops the buttons: it has turned a Cancel / Change block
+ * into a numbered list, which on WhatsApp is just text he has to type back.
+ */
+export async function sent<T>(result: T): Promise<T> {
+  const text = (result as any)?.sendExactly;
+  if (typeof text === 'string' && text.includes('::: actions'))
+    await addNote({ rupees: [], placed: false, buttons: text });
+  return result;
 }
 
 /**

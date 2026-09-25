@@ -1,8 +1,9 @@
 import { LuaTool, Lua } from 'lua-cli';
 import { z } from 'zod';
 import { post, currentRep, repLang } from '../../lib/api';
-import { notedText, replyIn, tr } from '../../lib/say';
+import { notedText, noOrderAskText, noOrderReason, replyIn, tr } from '../../lib/say';
 import { remember } from '../../lib/memory';
+import { sent } from '../../lib/guard';
 
 /**
  * A counter that gave no order today.
@@ -26,9 +27,10 @@ export default class LogVisitTool implements LuaTool {
       'competitor if a rival brand is named; stock_note if it is about shelf stock or expiry; ' +
       'otherwise no_order.'
     ),
-    reason: z.string().min(3).describe(
-      'What the rep actually said, in his words. "stock bhara hai", "Cipla ne 10+3 diya". ' +
-      'Never write "no order" alone — that records nothing.'
+    reason: z.string().optional().describe(
+      'Why, in his words: "stock bhara hai", "Cipla ne 10+3 diya", or the option he tapped ' +
+      '("I selected: *2. Owner absent*" → "2. Owner absent"). Leave it out when he gave no ' +
+      'reason; the tool then asks him with tap buttons. Never write "no order" as the reason.'
     ),
     repId: z.string().optional().describe('Only on the first message of a conversation.'),
     rivalBrand: z.string().optional().describe('For outcome competitor: the rival brand named, e.g. "Cipla".'),
@@ -38,6 +40,22 @@ export default class LogVisitTool implements LuaTool {
   });
 
   async execute(input: z.infer<typeof this.inputSchema>) {
+    // No reason, or one that says nothing: ask with three taps. A rival or a
+    // stock note always has its reason in the message, so only no_order asks.
+    const reason = noOrderReason(input.reason ?? '');
+    if (!reason || /^no order$/i.test(reason)) {
+      const lang = await repLang();
+      return sent({
+        needsReason: true,
+        sendExactly: noOrderAskText(lang),
+        replyIn: replyIn(lang),
+        nextStep:
+          `Send sendExactly word for word, including the ::: block, and stop. His next message is the ` +
+          `reason: a tap, a number or his own words. Call log_visit again with shop "${input.shop}" and ` +
+          `that as reason, exactly as he sent it.`,
+      });
+    }
+    input.reason = reason;
     const rep = await currentRep(input.repId);
     const r = await post('/api/agent/visit', {
       repId: rep.id,

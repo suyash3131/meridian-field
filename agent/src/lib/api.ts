@@ -1,7 +1,6 @@
 import { User } from 'lua-cli';
-import { type Lang, readBackText, replyIn, tr } from './say';
+import { type Lang, choiceText, readBackText, replyIn, tr } from './say';
 import { note } from './guard';
-import { buttons } from './rich';
 
 /**
  * The CRM this agent writes into. Every rule that matters — which counter,
@@ -115,21 +114,22 @@ export function readBack(draftId: string, s: any, lang: Lang = 'en') {
     replyIn: replyIn(lang),
     nextStep:
       `Send sendExactly to the rep word for word, including the ::: block at the end, nothing before or after it, and stop. ` +
-      `When he agrees — yes, ok, haan, thik hai, ha, a tick, or a tap on "Yes, place it" — call confirm_order with ` +
-      `draftId "${draftId}". Do NOT call draft_order again: this order already exists.`,
+      `When he agrees — yes, ok, haan, thik hai, ha, a tick, or a tap on "Confirm" / "कन्फ़र्म" — call confirm_order with ` +
+      `draftId "${draftId}". A tap on "Change" / "बदलें" is decline_order with pick "change"; a tap on "Cancel" / ` +
+      `"रद्द करें" is decline_order with pick "cancel". Do NOT call draft_order again: this order already exists.`,
   };
 }
 
 export function askText(draftId: string, question: string, options: { key: string; label: string }[], lang: Lang = 'en') {
   return {
     draftId,
-    sendExactly: [tr(question, lang), ...options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)].join('\n') +
-      buttons(options.map((o, i) => `${i + 1}. ${tr(o.label, lang)}`)),
-    optionKeys: options.map((o, i) => ({ number: i + 1, key: o.key })),
+    sendExactly: choiceText(tr(question, lang), options.map((o) => tr(o.label, lang))),
+    optionKeys: options.map((o, i) => ({ number: i + 1, label: tr(o.label, lang), key: o.key })),
     replyIn: replyIn(lang),
     nextStep:
       'Send sendExactly to the rep word for word, including any ::: block, and stop. When he replies ' +
-      'with a number or taps an option ("I selected: *2. …*"), call answer_choice with the matching key from optionKeys.',
+      'with a number or taps an option ("I selected: *Sharma Medical*"), call answer_choice with the key from ' +
+      'optionKeys whose number or label matches.',
   };
 }
 
@@ -158,4 +158,25 @@ export async function currentChemist(): Promise<{ name: string; shops: { id: str
 export async function thisTurn(): Promise<{ text: string; refs: string[]; channel: string }> {
   const u: any = await User.get();
   return { text: String(u?.lastText ?? ''), refs: Array.isArray(u?.lastRefs) ? u.lastRefs : [], channel: String(u?.lastChannel ?? '') };
+}
+
+/** What /api/agent/answer sent back, turned into what the rep sees. Shared by
+ *  answer_choice and by a Change / Cancel tap on the slip. */
+export function afterAnswer(result: any, lang: Lang) {
+  if (result.kind === 'draft') return readBack(result.draftId, result.summary, lang);
+  if (result.kind === 'question' || result.kind === 'duplicate')
+    return askText(result.draftId, result.question, result.options, lang);
+  if (result.kind === 'parked') return { parked: true, sendExactly: tr(result.message, lang) };
+  if (result.kind === 'cancelled')
+    return { cancelled: true, sendExactly: tr(result.message, lang),
+             nextStep: 'Send sendExactly word for word and stop. This order is closed.' };
+  if (result.kind === 'change')
+    return {
+      sendExactly: tr(result.message, lang), replyIn: replyIn(lang),
+      nextStep:
+        'Send sendExactly word for word and stop. His next message is the change. Call ' +
+        'draft_order for the same counter with the whole order as it now stands: the lines ' +
+        'you read back, with his change applied. Put his new message in message.',
+    };
+  return { error: tr(result.message ?? 'that answer did not fit the question', lang), replyIn: replyIn(lang) };
 }
